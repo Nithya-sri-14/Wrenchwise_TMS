@@ -14,16 +14,38 @@ Wrenchwise TMS is a web-based tool management system designed to help users mana
 ### Prerequisites
 - Node.js (for development server)
 
+
 ### Running Locally
-1. Install dependencies (if any):
+
+#### On macOS
+1. Open Terminal and navigate to your project directory:
+   ```sh
+   cd /path/to/Wrenchwise_tms
+   ```
+2. Install dependencies (if any):
    ```sh
    npm install
    ```
-2. Start a local server (recommended):
+3. Start a local server (recommended):
    ```sh
    npx live-server --port=8080 --open=index.html
    ```
-3. Open your browser to [http://127.0.0.1:8080](http://127.0.0.1:8080)
+4. Your default browser should open automatically. If not, open [http://127.0.0.1:8080](http://127.0.0.1:8080) manually.
+
+#### On Windows
+1. Open Command Prompt (cmd) or PowerShell and navigate to your project directory:
+   ```cmd
+   cd path\to\Wrenchwise_tms
+   ```
+2. Install dependencies (if any):
+   ```cmd
+   npm install
+   ```
+3. Start a local server (recommended):
+   ```cmd
+   npx live-server --port=8080 --open=index.html
+   ```
+4. Your default browser should open automatically. If not, open [http://127.0.0.1:8080](http://127.0.0.1:8080) manually.
 
 ### Project Structure
 - `index.html` - Main HTML file

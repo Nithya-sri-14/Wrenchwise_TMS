@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Wrench Wise Trainer Management System (WW-TMS) - Enterprise console for trainer intake, AI intelligence profiling, and scheduling workflow coordination.">
+  <title>Wrench Wise Trainer Management System (WW-TMS)</title>
+  
+  <!-- Modern Typography from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- CSS Entrypoint -->
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+
+  <!-- Background Grid Glows for Premium Aesthetic -->
+  <div class="glass-bg-glows" aria-hidden="true">
+    <div class="glow-1"></div>
+    <div class="glow-2"></div>
+  </div>
+
+  <!-- Primary App Layout -->
+  <div class="app-layout">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="app-sidebar" aria-label="Main Navigation">
+      <div class="sidebar-header">
+        <div class="logo-container">
+          <div class="logo-icon">W</div>
+          <div class="logo-text">
+            <h2>Wrench Wise</h2>
+            <span>WW-TMS</span>
+          </div>
+        </div>
+      </div>
+      
+      <nav class="sidebar-menu" aria-label="Primary Navigation Links">
+        <ul>
+          <li>
+            <button class="nav-btn active" id="nav-dashboard" data-view="dashboard" aria-current="page">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="10" rx="1"/><rect width="7" height="5" x="3" y="14" rx="1"/></svg>
+              <span>Dashboard</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-btn" id="nav-intake" data-view="intake">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+              <span>Resume Intake</span>
+              <span class="badge" id="intake-queue-badge">0</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-btn" id="nav-directory" data-view="directory">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span>Trainer Directory</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-btn" id="nav-outbox" data-view="outbox">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+              <span>Email Outbox</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-btn" id="nav-settings" data-view="settings">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span>Platform Settings</span>
+            </button>
+          </li>
+        </ul>
+      </nav>
+      
+      <!-- Active Recruiter Profile Card -->
+      <div class="sidebar-user-card">
+        <div class="user-avatar" aria-hidden="true">WW</div>
+        <div class="user-info">
+          <h3>Talent Operations</h3>
+          <span>talent@wrenchwise.in</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Container -->
+    <main class="app-main-content" id="main-content-panel">
+      <!-- Dynamic Views Render Here -->
+      <div class="loading-view-spinner" aria-label="Loading workspace views...">
+        <div class="spinner-core"></div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Global Duplicate Shield Intercept Dialog (Native <dialog>) -->
+  <dialog id="duplicate-shield-dialog" class="glass-dialog duplicate-dialog" aria-labelledby="dup-title">
+    <div class="dialog-header alert-gradient">
+      <div class="header-icon-container">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="alert-icon"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+      </div>
+      <h3 id="dup-title">Duplicate Profile Intercept Shield</h3>
+      <p>Our Elasticsearch and exact-match algorithms detected a highly matching pre-existing profile in the Wrench Wise database.</p>
+    </div>
+    <div class="dialog-content">
+      <div class="comparison-grid">
+        <div class="compare-column draft-column">
+          <h4>New Draft Record</h4>
+          <div class="card-inner" id="dup-draft-details">
+            <!-- Dynamic Injection -->
+          </div>
+        </div>
+        <div class="compare-divider" aria-hidden="true">
+          <span>VS</span>
+        </div>
+        <div class="compare-column existing-column">
+          <h4>Existing Database Record</h4>
+          <div class="card-inner" id="dup-existing-details">
+            <!-- Dynamic Injection -->
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" id="dup-btn-discard">Discard Draft</button>
+      <button type="button" class="btn btn-warning" id="dup-btn-merge">Overwrite & Merge</button>
+      <button type="button" class="btn btn-primary" id="dup-btn-view">View Existing Profile</button>
+    </div>
+  </dialog>
+
+  <!-- Global Toast Notification Layer -->
+  <div id="toast-layer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- PDF.js, Mammoth.js, and Tesseract.js for Direct Client-Side Document Extraction & OCR -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <!-- JavaScript Modules Entry -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

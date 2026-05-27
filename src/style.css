@@ -2034,7 +2034,7 @@ select.form-control {
 }
 
 .compare-column {
-  background: rgba(255, 255, 255, 0.01);
+  background: var(--bg-slate);
   border: 1px solid var(--border-translucent);
   border-radius: var(--radius-md);
   padding: 1.25rem;

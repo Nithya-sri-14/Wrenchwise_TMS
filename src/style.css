@@ -6,35 +6,38 @@
    1. Design Tokens & Root Variables
    -------------------------------------------------------------------------- */
 :root {
-  /* Harmonious Color Palette */
-  --bg-obsidian: #05070c;
-  --bg-slate: #0b0f19;
-  --bg-card: #111827;
-  --bg-card-hover: #1e293b;
-  --bg-glass: rgba(17, 24, 39, 0.65);
+  /* Dynamic Sidebar Width Variable */
+  --sidebar-width: 280px;
+
+  /* Harmonious Color Palette - Modern "Light Green & Light Blue" Light Mode Theme */
+  --bg-obsidian: #fafcfb;          /* Fresh clean white with mint green undertone */
+  --bg-slate: #edf5f1;             /* Fresh light mint cream background */
+  --bg-card: #ffffff;              /* Crisp high-contrast pure white panels */
+  --bg-card-hover: #f4fbf7;        /* Subtle green mint tinted hover */
+  --bg-glass: rgba(255, 255, 255, 0.9); /* Fresh white translucent glass sheen */
   
-  --primary-indigo: #6366f1;
-  --primary-cyan: #06b6d4;
-  --accent-purple: #8b5cf6;
-  --accent-emerald: #10b981;
-  --accent-amber: #f59e0b;
-  --accent-rose: #f43f5e;
+  --primary-indigo: #0ea5e9;       /* Vibrant Sky Blue / Azure Accent */
+  --primary-cyan: #10b981;         /* Vibrant Mint / Emerald Green Accent */
+  --accent-purple: #0d9488;        /* Deep Teal Accent */
+  --accent-emerald: #0ea5e9;       /* Sky Blue Accent */
+  --accent-amber: #0284c7;         /* Radiant Blue Accent */
+  --accent-rose: #ef4444;          /* Soft Crimson Red Accent */
   
-  --text-white: #f8fafc;
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-white: #0f172a;           /* Slate-900: High contrast dark charcoal slate text */
+  --text-primary: #1e293b;         /* Slate-800: Highly readable primary text */
+  --text-secondary: #475569;       /* Slate-600: Secondary text */
+  --text-muted: #64748b;           /* Slate-500: Muted descriptors */
   
-  --border-translucent: rgba(255, 255, 255, 0.06);
-  --border-accent: rgba(99, 102, 241, 0.2);
+  --border-translucent: rgba(16, 185, 129, 0.12); /* Fresh light green translucent border */
+  --border-accent: rgba(14, 165, 233, 0.18);       /* Light sky blue accent border */
   
   --gradient-cyber: linear-gradient(135deg, var(--primary-indigo), var(--primary-cyan));
   --gradient-emerald: linear-gradient(135deg, #10b981, #059669);
-  --gradient-rose: linear-gradient(135deg, #f43f5e, #be123c);
-  --gradient-dark: linear-gradient(180deg, #111827, #0b0f19);
+  --gradient-rose: linear-gradient(135deg, #ef4444, #dc2626);
+  --gradient-dark: linear-gradient(180deg, #f0fdf4, #e0f2fe); /* Soft light green to soft light blue gradient for sidebar */
   
-  --shadow-premium: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
-  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
+  --shadow-premium: 0 10px 30px -10px rgba(15, 23, 42, 0.05); /* Premium soft modern shadows */
+  --shadow-glow: 0 0 20px rgba(16, 185, 129, 0.08);
   
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   --radius-lg: 16px;
@@ -100,7 +103,7 @@ body {
   right: 5%;
   width: 50vw;
   height: 50vw;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.08) 0%, transparent 70%);
   filter: blur(80px);
 }
 
@@ -110,7 +113,7 @@ body {
   left: 5%;
   width: 45vw;
   height: 45vw;
-  background: radial-gradient(circle, rgba(6, 182, 212, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.06) 0%, transparent 70%);
   filter: blur(80px);
 }
 
@@ -119,7 +122,7 @@ body {
    -------------------------------------------------------------------------- */
 .app-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: var(--sidebar-width) 1fr;
   min-height: 100vh;
 }
 
@@ -134,6 +137,24 @@ body {
   top: 0;
   padding: 1.75rem;
   z-index: 10;
+  position: relative;
+}
+
+/* Vertical resizer drag handle bar */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 100;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
+}
+.sidebar-resizer:hover, .sidebar-resizer.resizing {
+  background-color: var(--primary-cyan);
+  box-shadow: 0 0 10px var(--primary-cyan);
 }
 
 .sidebar-header {
@@ -149,16 +170,11 @@ body {
 .logo-icon {
   width: 38px;
   height: 38px;
-  background: var(--gradient-cyber);
+  object-fit: contain;
   border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Outfit', sans-serif;
-  font-weight: 800;
-  font-size: 1.25rem;
-  color: var(--text-white);
   box-shadow: var(--shadow-glow);
+  background: var(--bg-card);
+  padding: 4px;
 }
 
 .logo-text h2 {
@@ -206,21 +222,21 @@ body {
 }
 
 .nav-btn:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(16, 185, 129, 0.06);
   color: var(--text-white);
-  border-color: rgba(255, 255, 255, 0.02);
+  border-color: rgba(16, 185, 129, 0.12);
 }
 
 .nav-btn.active {
-  background: rgba(99, 102, 241, 0.09);
+  background: rgba(14, 165, 233, 0.08);
   color: var(--text-white);
-  border-color: rgba(99, 102, 241, 0.2);
-  box-shadow: inset 0 0 10px rgba(99, 102, 241, 0.05);
+  border-color: rgba(14, 165, 233, 0.2);
+  box-shadow: inset 0 0 10px rgba(14, 165, 233, 0.04);
 }
 
 .nav-btn.active .nav-icon {
-  color: var(--primary-cyan);
-  filter: drop-shadow(0 0 4px rgba(6, 182, 212, 0.4));
+  color: var(--primary-indigo);
+  filter: drop-shadow(0 0 4px rgba(14, 165, 233, 0.25));
 }
 
 .nav-icon {
@@ -1094,7 +1110,7 @@ body {
 }
 
 .form-control {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(0, 0, 0, 0.02);
   border: 1px solid var(--border-translucent);
   border-radius: var(--radius-sm);
   padding: 0.75rem 1rem;
@@ -1107,8 +1123,8 @@ body {
 }
 
 .form-control:focus {
-  border-color: var(--primary-indigo);
-  background: rgba(99, 102, 241, 0.02);
+  border-color: var(--primary-cyan);
+  background: rgba(16, 185, 129, 0.02);
   box-shadow: var(--shadow-glow);
 }
 
@@ -1923,12 +1939,12 @@ select.form-control {
    15. Global Native Dialogs Styling (<dialog>)
    -------------------------------------------------------------------------- */
 .glass-dialog {
-  background: rgba(11, 15, 25, 0.95);
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border-translucent);
   border-radius: var(--radius-lg);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
   width: 90%;
   max-width: 600px;
   margin: auto;
@@ -1953,7 +1969,7 @@ select.form-control {
 }
 
 .glass-dialog::backdrop {
-  background: rgba(3, 5, 10, 0.8);
+  background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(8px);
   transition: opacity 0.3s ease;
 }
@@ -2165,3 +2181,315 @@ select.form-control {
     grid-template-columns: 1fr;
   }
 }
+
+/* --------------------------------------------------------------------------
+   16. Top Filters and Spreadsheet Layout Additions (Light Green & Blue Theme)
+   -------------------------------------------------------------------------- */
+
+.top-filter-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-translucent);
+  border-radius: var(--radius-md);
+  margin-bottom: 1.5rem;
+}
+
+.top-filter-panel .filter-section {
+  border-bottom: none;
+  padding-bottom: 0;
+  border-right: 1px solid var(--border-translucent);
+  padding-right: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.top-filter-panel .filter-section:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+/* Horizontal alignment tweaks for checkboxes and bookmark button */
+.top-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: auto;
+}
+
+/* Sheets-like Table Styling updates */
+.sheet-table-wrapper {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-translucent);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  box-shadow: var(--shadow-premium);
+}
+
+.sheet-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.sheet-table th {
+  padding: 1.1rem 1.25rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  border-bottom: 2px solid rgba(16, 185, 129, 0.15);
+  background: rgba(4, 10, 20, 0.4);
+}
+
+.sheet-table td {
+  padding: 1.1rem 1.25rem;
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--border-translucent);
+  color: var(--text-primary);
+  vertical-align: middle;
+  transition: var(--transition-smooth);
+}
+
+.sheet-table tbody tr {
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.sheet-table tbody tr:hover td {
+  background: rgba(37, 99, 235, 0.04);
+}
+
+.sheet-table tbody tr.selected td {
+  background: rgba(16, 185, 129, 0.06);
+}
+
+/* Sheet row identity styling */
+.sheet-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.sheet-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--gradient-cyber);
+  color: var(--text-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.15);
+}
+
+.sheet-names h4 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-white);
+  margin-bottom: 0.1rem;
+}
+
+.sheet-names p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Reminders Menu & Layout specific rules */
+.reminders-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.reminder-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.reminder-status-badge.pending {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--accent-amber);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.reminder-status-badge.completed {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--primary-cyan);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.reminder-action-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: var(--transition-smooth);
+}
+
+.reminder-action-btn.complete {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: var(--primary-cyan);
+}
+
+.reminder-action-btn.complete:hover {
+  background: var(--primary-cyan);
+  color: var(--bg-obsidian);
+}
+
+.reminder-action-btn.delete {
+  background: rgba(244, 63, 94, 0.1);
+  border-color: rgba(244, 63, 94, 0.2);
+  color: var(--accent-rose);
+}
+
+.reminder-action-btn.delete:hover {
+  background: var(--accent-rose);
+  color: var(--text-white);
+}
+
+/* Sidebar Count Badges */
+.badge {
+  background: var(--primary-cyan);
+  color: var(--bg-obsidian);
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 10px;
+  margin-left: auto;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+}
+
+#nav-reminders.nav-btn.active .badge {
+  background: var(--text-white);
+  color: var(--primary-indigo);
+}
+
+/* --------------------------------------------------------------------------
+   16. Real-Time Floating Reminder Notifications Styling
+   -------------------------------------------------------------------------- */
+#tms-reminder-toast-container {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 360px;
+  pointer-events: none;
+}
+
+.reminder-floating-alert {
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-md);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(16, 185, 129, 0.05);
+  padding: 1.25rem;
+  animation: slideInLeftAlert 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@keyframes slideInLeftAlert {
+  from {
+    opacity: 0;
+    transform: translateX(50px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes fadeOutAlert {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(50px) scale(0.9);
+  }
+}
+
+.reminder-alert-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.reminder-alert-header .bell-icon {
+  font-size: 1.1rem;
+  animation: ringBell 1s infinite alternate;
+  display: inline-block;
+}
+
+@keyframes ringBell {
+  0% { transform: rotate(-10deg); }
+  100% { transform: rotate(10deg); }
+}
+
+.reminder-alert-header .countdown {
+  margin-left: auto;
+  background: rgba(14, 165, 233, 0.1);
+  color: var(--primary-indigo);
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.725rem;
+}
+
+.reminder-alert-body h4 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-white);
+}
+
+.reminder-alert-body p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+.reminder-alert-body .time-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+.reminder-alert-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.reminder-alert-actions .btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+}
+

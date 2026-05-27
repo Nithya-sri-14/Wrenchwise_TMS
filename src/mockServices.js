@@ -164,6 +164,13 @@ export class AIParsingService {
               try {
                 const parsedProfile = await this.parseViaGemini(rawText, geminiApiKey.trim());
                 parsedProfile.source = "Direct App";
+                if (!parsedProfile.totalExperience || parsedProfile.totalExperience === 0) {
+                  const calculatedExp = this.calculateYearsOfExperienceFromText(rawText);
+                  if (calculatedExp > 0) {
+                    parsedProfile.totalExperience = calculatedExp;
+                    parsedProfile.teachingExperience = Math.max(0, Math.round(calculatedExp / 3));
+                  }
+                }
                 onProgress("AI Analysis of OCR text completed with high-accuracy!");
                 await this.delay(400);
                 return parsedProfile;
@@ -179,6 +186,13 @@ export class AIParsingService {
           try {
             const parsedProfile = await this.parseViaGemini(rawText, geminiApiKey.trim());
             parsedProfile.source = "Direct App";
+            if (!parsedProfile.totalExperience || parsedProfile.totalExperience === 0) {
+              const calculatedExp = this.calculateYearsOfExperienceFromText(rawText);
+              if (calculatedExp > 0) {
+                parsedProfile.totalExperience = calculatedExp;
+                parsedProfile.teachingExperience = Math.max(0, Math.round(calculatedExp / 3));
+              }
+            }
             onProgress("AI Analysis completed with high-accuracy!");
             await this.delay(400);
             return parsedProfile;
@@ -466,6 +480,112 @@ Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks like \`\
   }
 
   // --------------------------------------------------------------------------
+  // Professional Experience Calculator: Parses and merges resume date ranges
+  // --------------------------------------------------------------------------
+  static calculateYearsOfExperienceFromText(text) {
+    if (!text || !text.trim()) return 0;
+    
+    const currentYear = 2026;
+    const currentMonth = 5; // May 2026
+    
+    // Normalize spaces and lowercase
+    const clean = text.replace(/\s+/g, ' ');
+    
+    const monthNames = {
+      jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4,
+      may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8, sep: 9, september: 9,
+      oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12
+    };
+
+    // Regex to detect combinations of Months and Years or raw Years
+    // Supporting patterns: "June 2018 - Present", "05/2016 to 12/2019", "2015-2019"
+    const rangeRegex = /(?:([a-zA-Z]{3,9}|\d{1,2})[\/\s]+)?(\d{4})\s*(?:-|to|till|until)\s*(?:([a-zA-Z]{3,9}|\d{1,2})[\/\s]+)?(\d{4}|present|current|now)/gi;
+    
+    let match;
+    const intervals = [];
+    
+    while ((match = rangeRegex.exec(clean)) !== null) {
+      const startMonthStr = match[1];
+      const startYear = parseInt(match[2]);
+      const endMonthStr = match[3];
+      const endYearStr = match[4];
+      
+      // Exclude unrealistic years
+      if (startYear < 1980 || startYear > currentYear) continue;
+      
+      let endYear = currentYear;
+      if (endYearStr && !/present|current|now/i.test(endYearStr)) {
+        endYear = parseInt(endYearStr);
+      }
+      if (endYear < startYear || endYear > currentYear + 1) continue;
+      
+      // Calculate months
+      let startMonth = 1;
+      if (startMonthStr) {
+        const cleanMonth = startMonthStr.toLowerCase().substring(0, 3);
+        if (monthNames[cleanMonth]) {
+          startMonth = monthNames[cleanMonth];
+        } else {
+          const mNum = parseInt(startMonthStr);
+          if (mNum >= 1 && mNum <= 12) startMonth = mNum;
+        }
+      }
+      
+      let endMonth = 12;
+      if (/present|current|now/i.test(endYearStr || '')) {
+        endMonth = currentMonth;
+      } else if (endMonthStr) {
+        const cleanMonth = endMonthStr.toLowerCase().substring(0, 3);
+        if (monthNames[cleanMonth]) {
+          endMonth = monthNames[cleanMonth];
+        } else {
+          const mNum = parseInt(endMonthStr);
+          if (mNum >= 1 && mNum <= 12) endMonth = mNum;
+        }
+      }
+      
+      const startVal = startYear + (startMonth - 1) / 12;
+      const endVal = endYear + (endMonth - 1) / 12;
+      
+      if (endVal >= startVal) {
+        intervals.push({ start: startVal, end: endVal });
+      }
+    }
+    
+    if (intervals.length === 0) {
+      return 0;
+    }
+    
+    // Sort intervals by start date
+    intervals.sort((a, b) => a.start - b.start);
+    
+    // Merge overlapping experience intervals
+    const merged = [];
+    let currentInterval = intervals[0];
+    
+    for (let i = 1; i < intervals.length; i++) {
+      const next = intervals[i];
+      if (next.start <= currentInterval.end) {
+        // Merge intervals that overlap
+        currentInterval.end = Math.max(currentInterval.end, next.end);
+      } else {
+        merged.push(currentInterval);
+        currentInterval = next;
+      }
+    }
+    merged.push(currentInterval);
+    
+    // Compute total experience duration in years
+    let totalSpan = 0;
+    for (const interval of merged) {
+      totalSpan += (interval.end - interval.start);
+    }
+    
+    // Return rounded experience in years
+    return Math.max(1, Math.round(totalSpan));
+  }
+
+  // --------------------------------------------------------------------------
   // Refined Local Regex Heuristic Extraction Algorithm (Accurate Fallback)
   // --------------------------------------------------------------------------
   static extractEntitiesFromText(text, filename = "") {
@@ -552,7 +672,7 @@ Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks like \`\
     // D. Ultimate default fallback
     if (!name) name = "Candidate Profile Ingest";
  
-    // 5. Tech Skill Matching Dictionary (Expanded to 90+ modern skills)
+    // 5. Tech Skill Matching & Section-Based Extraction
     const SKILLS_LIST = [
       "React", "React Native", "Swift", "SwiftUI", "iOS", "Android", "Flutter",
       "Node.js", "Express.js", "Django", "FastAPI", "Flask", "Spring Boot",
@@ -566,10 +686,11 @@ Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks like \`\
       "Artificial Intelligence", "Prompt Engineering", "RAG", "Vector Databases", "Redis", "Oracle", 
       "DevOps", "Serverless", "Cloud Native", "GitHub Actions", "Firebase", "Supabase", "Prisma"
     ];
- 
+
     const matchedSkills = [];
     const lowerText = text.toLowerCase();
     
+    // First, run standard matching from the dictionary
     SKILLS_LIST.forEach(skill => {
       const escaped = skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
       const regex = new RegExp(`\\b${escaped.toLowerCase()}\\b`, 'g');
@@ -577,6 +698,38 @@ Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks like \`\
         matchedSkills.push(skill);
       }
     });
+
+    // Second, run Section-Based Skills Scanning
+    let inSkillsSection = false;
+    const sectionHeadersExclusion = /experience|employment|education|projects|certifications|summary|contact|achievements/i;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Detect when we enter a skills section
+      if (/^(?:technical\s+)?skills|technologies|expertise|core\s+competencies\s*:?$/i.test(line)) {
+        inSkillsSection = true;
+        continue;
+      }
+      
+      // Detect when we exit the skills section by encountering another major heading
+      if (inSkillsSection && (sectionHeadersExclusion.test(line) && line.length < 25 && /^[A-Z]/.test(line))) {
+        inSkillsSection = false;
+      }
+      
+      // If we are inside the skills section, extract skills
+      if (inSkillsSection && line.length > 3) {
+        // Split by commas, semicolons, bullets, and vertical pipes
+        const parts = line.split(/[,;|•\-\*]/).map(p => p.trim()).filter(p => p.length > 1 && p.length < 35);
+        parts.forEach(part => {
+          if (/^(and|with|for|to|using|tools|languages|frameworks|libraries|databases|technologies|platforms)$/i.test(part)) return;
+          const formatted = part.replace(/\b\w/g, c => c.toUpperCase());
+          if (!matchedSkills.includes(formatted) && formatted.length > 1) {
+            matchedSkills.push(formatted);
+          }
+        });
+      }
+    }
  
     // 6. Heuristic City Location Scanner (Covering Tamil Nadu districts A-Z + Metro cities)
     const CITIES = [
@@ -706,8 +859,14 @@ Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks like \`\
       if (designation === "Trainer Associate") designation = "Entry-Level Profile";
     }
  
-    // 9. Total Experience (Highly Accurate Multiple Patterns)
-    let totalExperience = 5;
+    // 9. Total Experience (Dynamically Calculated from Resume Date Spans)
+    let totalExperience = 0;
+    
+    // Calculate via parsed date ranges
+    const calculatedExp = AIParsingService.calculateYearsOfExperienceFromText(text);
+    
+    // Heuristic pattern check as backup or baseline validation
+    let textStatedExp = 0;
     const expPatterns = [
       /(\d+)\+?\s*years?\s*(of\s*)?(?:professional|work|industry|sourcing|teaching|training)?\s*experience/i,
       /(?:total|work|sourcing|teaching)\s*experience\s*:?\s*(\d+)\+?\s*years?/i,
@@ -717,12 +876,23 @@ Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks like \`\
     for (const pattern of expPatterns) {
       const match = cleanText.match(pattern);
       if (match && match[1]) {
-        totalExperience = parseInt(match[1]);
+        textStatedExp = parseInt(match[1]);
         break;
       }
     }
+    
+    if (calculatedExp > 0) {
+      totalExperience = calculatedExp;
+    } else if (textStatedExp > 0) {
+      totalExperience = textStatedExp;
+    } else {
+      totalExperience = 5; // default fallback
+    }
 
-    // 10. Certifications Heuristics
+    // Capping years of experience at a realistic maximum of 40 years
+    totalExperience = Math.min(40, totalExperience);
+
+    // 10. Certifications Matching & Section-Based Extraction
     const CERT_KEYWORDS = [
       "certified", "certification", "certificate", "credential", 
       "ccna", "ccnp", "cka", "ckad", "csm", "pmp", "itil", "ocp", 
@@ -731,15 +901,50 @@ Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks like \`\
     const EXCLUDE_WORDS = ["resume", "cv", "experience", "education", "skills", "projects", "employment", "summary", "profile", "contact", "about me", "certifications:", "certification:"];
 
     const extractedCerts = [];
+    
+    // First, scan line by line for explicit certification matches
     for (const line of lines) {
       const lowerLine = line.toLowerCase();
       if (CERT_KEYWORDS.some(k => lowerLine.includes(k))) {
-        if (line.length > 5 && line.length < 80 && !EXCLUDE_WORDS.some(w => lowerLine === w)) {
+        if (line.length > 5 && line.length < 85 && !EXCLUDE_WORDS.some(w => lowerLine === w)) {
           const cleanCert = line.replace(/^[\s•\-\*\d\.\,\)]+/, '').trim();
           if (cleanCert && cleanCert.length > 3 && !extractedCerts.includes(cleanCert)) {
-            extractedCerts.push(cleanCert);
+            const formatted = cleanCert.replace(/\b\w/g, c => c.toUpperCase());
+            extractedCerts.push(formatted);
           }
         }
+      }
+    }
+
+    // Second, run Section-Based Certifications Scanning
+    let inCertsSection = false;
+    const certSectionHeadersExclusion = /experience|employment|education|skills|projects|summary|contact|achievements/i;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Detect when we enter certifications section
+      if (/^(?:professional\s+)?certifications|certificates|licenses\s*&\s*certifications|credentials\s*:?$/i.test(line)) {
+        inCertsSection = true;
+        continue;
+      }
+      
+      // Detect when we exit by encountering another major heading
+      if (inCertsSection && (certSectionHeadersExclusion.test(line) && line.length < 25 && /^[A-Z]/.test(line))) {
+        inCertsSection = false;
+      }
+      
+      // If inside certifications section, extract
+      if (inCertsSection && line.length > 3) {
+        const parts = line.split(/[,;•\-\*]/).map(p => p.trim()).filter(p => p.length > 3 && p.length < 80);
+        parts.forEach(part => {
+          const lowerPart = part.toLowerCase();
+          if (EXCLUDE_WORDS.some(w => lowerPart.includes(w))) return;
+          const formatted = part.replace(/\b\w/g, c => c.toUpperCase());
+          if (!extractedCerts.includes(formatted)) {
+            extractedCerts.push(formatted);
+          }
+        });
       }
     }
 

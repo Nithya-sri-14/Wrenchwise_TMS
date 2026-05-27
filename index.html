@@ -29,7 +29,7 @@
     <aside class="app-sidebar" aria-label="Main Navigation">
       <div class="sidebar-header">
         <div class="logo-container">
-          <div class="logo-icon">W</div>
+          <img src="https://wrench-wise.com/mainlogo.png" class="logo-icon" alt="Wrench Wise Logo">
           <div class="logo-text">
             <h2>Wrench Wise</h2>
             <span>WW-TMS</span>
@@ -59,6 +59,13 @@
             </button>
           </li>
           <li>
+            <button class="nav-btn" id="nav-reminders" data-view="reminders">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <span>Reminders</span>
+              <span class="badge" id="reminders-count-badge">0</span>
+            </button>
+          </li>
+          <li>
             <button class="nav-btn" id="nav-outbox" data-view="outbox">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
               <span>Email Outbox</span>
@@ -81,6 +88,9 @@
           <span>talent@wrenchwise.in</span>
         </div>
       </div>
+
+      <!-- Live resizer drag handle bar -->
+      <div class="sidebar-resizer" id="sidebar-resizer"></div>
     </aside>
 
     <!-- Main Content Container -->
@@ -126,6 +136,42 @@
       <button type="button" class="btn btn-warning" id="dup-btn-merge">Overwrite & Merge</button>
       <button type="button" class="btn btn-primary" id="dup-btn-view">View Existing Profile</button>
     </div>
+  </dialog>
+
+  <!-- Global Follow-up Scheduler Modal (Native <dialog>) -->
+  <dialog id="followup-scheduler-dialog" class="glass-dialog duplicate-dialog" aria-labelledby="followup-title" style="max-width: 500px;">
+    <div class="dialog-header alert-gradient" style="background: linear-gradient(135deg, var(--primary-indigo), var(--primary-cyan)); padding: 1.5rem 2rem;">
+      <div class="header-icon-container" style="background: rgba(255, 255, 255, 0.2); color: #ffffff;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="alert-icon"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </div>
+      <h3 id="followup-title" style="color: #ffffff; font-weight: 700;">Schedule Follow-up Reminder</h3>
+      <p style="color: rgba(255, 255, 255, 0.95); margin-top: 0.25rem;">Specify the date, time, and summary details for this follow-up touchpoint.</p>
+    </div>
+    <form id="followup-scheduler-form" class="tms-form" style="padding: 1.5rem;">
+      <input type="hidden" id="followup-trainer-id">
+      <div class="form-group">
+        <label for="followup-trainer-name" style="color: var(--text-primary); font-weight: 600;">Trainer Name</label>
+        <input type="text" id="followup-trainer-name" class="form-control" readonly style="opacity: 0.8; background: var(--bg-slate); color: var(--text-primary); border-color: var(--border-translucent);">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="followup-date" style="color: var(--text-primary); font-weight: 600;">Date *</label>
+          <input type="date" id="followup-date" class="form-control" required style="color: var(--text-primary); background: var(--bg-card); border-color: var(--border-translucent);">
+        </div>
+        <div class="form-group">
+          <label for="followup-time" style="color: var(--text-primary); font-weight: 600;">Time *</label>
+          <input type="time" id="followup-time" class="form-control" required style="color: var(--text-primary); background: var(--bg-card); border-color: var(--border-translucent);">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="followup-note" style="color: var(--text-primary); font-weight: 600;">Follow-up Note / Description *</label>
+        <textarea id="followup-note" class="form-control" placeholder="What needs to be discussed or resolved?" required style="color: var(--text-primary); background: var(--bg-card); border-color: var(--border-translucent); min-height: 80px;"></textarea>
+      </div>
+      <div class="dialog-footer" style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem; padding-top: 1rem; border-top: 1px solid var(--border-translucent);">
+        <button type="button" class="btn btn-secondary" id="btn-followup-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Schedule Reminder</button>
+      </div>
+    </form>
   </dialog>
 
   <!-- Global Toast Notification Layer -->

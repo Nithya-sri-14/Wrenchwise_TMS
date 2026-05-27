@@ -189,7 +189,7 @@ const INITIAL_TRAINERS = [
     availabilityTimeline: "Immediate",
     audienceFit: ["Students", "Working professionals"],
     
-    status: "Demo Scheduled",
+    status: "Follow-up Required",
     internalRating: 4.2,
     
     timeline: [
@@ -339,6 +339,7 @@ class WWStateStore {
   constructor() {
     this.trainers = [];
     this.emailOutbox = [];
+    this.reminders = [];
     this.listeners = [];
     this.init();
   }
@@ -347,6 +348,7 @@ class WWStateStore {
     try {
       const storedTrainers = localStorage.getItem('ww_tms_trainers');
       const storedOutbox = localStorage.getItem('ww_tms_outbox');
+      const storedReminders = localStorage.getItem('ww_tms_reminders');
       
       if (storedTrainers) {
         this.trainers = JSON.parse(storedTrainers);
@@ -376,10 +378,18 @@ class WWStateStore {
         this.emailOutbox = [];
         this.saveOutbox();
       }
+
+      if (storedReminders) {
+        this.reminders = JSON.parse(storedReminders);
+      } else {
+        this.reminders = [];
+        this.saveReminders();
+      }
     } catch (err) {
       console.error("Failed to initialize WW-TMS State. Falling back to memory state.", err);
       this.trainers = [];
       this.emailOutbox = [];
+      this.reminders = [];
     }
   }
 
@@ -411,6 +421,21 @@ class WWStateStore {
       }
     ];
     this.saveOutbox();
+
+    // Seed a default reminder
+    this.reminders = [
+      {
+        id: "m-rem-1",
+        trainerId: "ww-tr-vikrams",
+        trainerName: "Vikram Sengupta",
+        date: new Date(Date.now() + 2*24*60*60*1000).toISOString().split('T')[0],
+        time: "11:00",
+        note: "Discuss commercial negotiation and travel reimbursement guidelines for Mumbai bootcamp.",
+        status: "Pending",
+        timestamp: new Date().toISOString()
+      }
+    ];
+    this.saveReminders();
   }
 
   clearDatabase() {
@@ -418,6 +443,8 @@ class WWStateStore {
     this.saveTrainers();
     this.emailOutbox = [];
     this.saveOutbox();
+    this.reminders = [];
+    this.saveReminders();
   }
 
   // Persists the current database lists
@@ -437,6 +464,50 @@ class WWStateStore {
     } catch (err) {
       console.error("Storage error during outbox persist", err);
     }
+  }
+
+  saveReminders() {
+    try {
+      localStorage.setItem('ww_tms_reminders', JSON.stringify(this.reminders));
+      this.notifyListeners();
+    } catch (err) {
+      console.error("Storage error during reminders persist", err);
+    }
+  }
+
+  getReminders() {
+    return this.reminders;
+  }
+
+  addReminder(reminderData) {
+    const newReminder = {
+      id: 'ww-rem-' + Math.random().toString(36).substr(2, 9),
+      trainerId: reminderData.trainerId,
+      trainerName: reminderData.trainerName,
+      date: reminderData.date,
+      time: reminderData.time,
+      note: reminderData.note,
+      status: reminderData.status || "Pending",
+      timestamp: new Date().toISOString()
+    };
+    this.reminders.unshift(newReminder);
+    this.saveReminders();
+    return newReminder;
+  }
+
+  updateReminderStatus(id, newStatus) {
+    const reminder = this.reminders.find(r => r.id === id);
+    if (reminder) {
+      reminder.status = newStatus;
+      this.saveReminders();
+      return reminder;
+    }
+    return null;
+  }
+
+  deleteReminder(id) {
+    this.reminders = this.reminders.filter(r => r.id !== id);
+    this.saveReminders();
   }
 
   // Event dispatch system to bind triggers in components

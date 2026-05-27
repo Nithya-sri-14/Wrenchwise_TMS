@@ -121,6 +121,9 @@ function switchView(viewName, trainerId = null, filterPreset = null) {
       case 'settings':
         renderSettings();
         break;
+      case 'reminders':
+        renderReminders();
+        break;
       case 'profile-detail':
         if (trainerId) renderTrainerDetail(trainerId);
         else switchView('directory');
@@ -665,12 +668,12 @@ function renderReviewFormMarkup(draftData) {
 
         <div class="form-row">
           <div class="form-group">
-            <label for="intake-hourly">Hourly Expectation (₹)</label>
-            <input type="number" id="intake-hourly" class="form-control" value="${draftData.hourlyExpectation || 0}">
+            <label for="intake-current-ctc">Current CTC</label>
+            <input type="text" id="intake-current-ctc" class="form-control" value="${draftData.currentCTC || ''}" placeholder="e.g. ₹18,00,000">
           </div>
           <div class="form-group">
-            <label for="intake-daily">Daily Expected Rate (₹)</label>
-            <input type="number" id="intake-daily" class="form-control" value="${draftData.dailyRate || 0}">
+            <label for="intake-expected-ctc">Expected CTC</label>
+            <input type="text" id="intake-expected-ctc" class="form-control" value="${draftData.expectedCTC || ''}" placeholder="e.g. ₹22,00,000">
           </div>
         </div>
 
@@ -810,6 +813,19 @@ function setupIntakeListeners() {
 
       if (saved > 0) showToast(`✅ ${saved} trainer profile${saved > 1 ? 's' : ''} added successfully!`, 'success');
       if (skipped > 0) showToast(`⚠️ ${skipped} profile${skipped > 1 ? 's' : ''} skipped (duplicate detected).`, 'warning');
+      
+      // Purge all processed doneItems from the uploadQueue
+      uploadQueue = uploadQueue.filter(i => !doneItems.includes(i));
+      if (doneItems.some(i => i.id === activeQueueItemId)) {
+        activeQueueItemId = null;
+        activeDraftTrainerData = null;
+        const reviewPane = document.getElementById('intake-review-pane');
+        if (reviewPane) {
+          reviewPane.innerHTML = renderReviewFormMarkup(null);
+        }
+      }
+      refreshQueueUI();
+
       if (saved > 0) setTimeout(() => switchView('directory'), 1200);
     });
   }
@@ -1020,8 +1036,8 @@ function bindDraftSubmitListener() {
       const educationEl = document.getElementById('intake-education');
       const engagementEl = document.getElementById('intake-engagement');
       const deliveryEl = document.getElementById('intake-delivery');
-      const hourlyEl = document.getElementById('intake-hourly');
-      const dailyEl = document.getElementById('intake-daily');
+      const currentCtcEl = document.getElementById('intake-current-ctc');
+      const expectedCtcEl = document.getElementById('intake-expected-ctc');
       const travelEl = document.getElementById('intake-travel');
       const negotiableEl = document.getElementById('intake-negotiable');
 
@@ -1073,8 +1089,8 @@ function bindDraftSubmitListener() {
         
         engagementPreference: engagementEl ? engagementEl.value : "Freelancer",
         deliveryMode: deliveryEl ? deliveryEl.value : "Hybrid",
-        hourlyExpectation: hourlyEl ? (parseFloat(hourlyEl.value) || 0) : 0,
-        dailyRate: dailyEl ? (parseFloat(dailyEl.value) || 0) : 0,
+        currentCTC: currentCtcEl ? currentCtcEl.value.trim() : "",
+        expectedCTC: expectedCtcEl ? expectedCtcEl.value.trim() : "",
         travelWillingness: travelEl ? travelEl.value : "Yes",
         negotiability: negotiableEl ? negotiableEl.value : "Negotiable",
         source: source,
@@ -1108,6 +1124,21 @@ function bindDraftSubmitListener() {
       } else {
         // Safe creation
         const trainer = state.createTrainer(draftPayload);
+        
+        // Remove from queue if it came from queue
+        if (activeQueueItemId) {
+          uploadQueue = uploadQueue.filter(i => i.id !== activeQueueItemId);
+          activeQueueItemId = null;
+          activeDraftTrainerData = null;
+          refreshQueueUI();
+        }
+        
+        // Clear review pane form
+        const reviewPane = document.getElementById('intake-review-pane');
+        if (reviewPane) {
+          reviewPane.innerHTML = renderReviewFormMarkup(null);
+        }
+
         showToast(`Successfully created trainer profile for ${trainer.name}!`, 'success');
         switchView('directory');
       }
@@ -1155,13 +1186,27 @@ function triggerDuplicateModal(draft, existing) {
 
   // Attach button triggers for duplicate shield handling
   dupBtnDiscard.onclick = () => {
+    // 1. Remove from queue if it came from queue
+    if (activeQueueItemId) {
+      uploadQueue = uploadQueue.filter(i => i.id !== activeQueueItemId);
+      activeQueueItemId = null;
+      activeDraftTrainerData = null;
+      refreshQueueUI();
+    }
+    
+    // 2. Clear review pane form
+    const reviewPane = document.getElementById('intake-review-pane');
+    if (reviewPane) {
+      reviewPane.innerHTML = renderReviewFormMarkup(null);
+    }
+
     duplicateDialog.close();
     showToast("Intake draft discarded.", "warning");
   };
 
   dupBtnMerge.onclick = () => {
-    // Overwrite existing record fields, excluding draft timeline/assignments to preserve the existing database history
-    const { timeline, assignments, ...fieldsToMerge } = draft;
+    // Overwrite existing record fields, excluding draft timeline, assignments, status, and creation metadata to preserve database history
+    const { timeline, assignments, status, dateAdded, dateParsed, ...fieldsToMerge } = draft;
     state.updateTrainer(existing.id, {
       ...fieldsToMerge,
       skills: Array.isArray(draft.skills) ? draft.skills : (draft.skills ? draft.skills.split(',').map(s => s.trim()) : []),
@@ -1179,12 +1224,40 @@ function triggerDuplicateModal(draft, existing) {
       followUpDate: ""
     });
 
+    // 1. Remove from queue if it came from queue
+    if (activeQueueItemId) {
+      uploadQueue = uploadQueue.filter(i => i.id !== activeQueueItemId);
+      activeQueueItemId = null;
+      activeDraftTrainerData = null;
+      refreshQueueUI();
+    }
+    
+    // 2. Clear review pane form
+    const reviewPane = document.getElementById('intake-review-pane');
+    if (reviewPane) {
+      reviewPane.innerHTML = renderReviewFormMarkup(null);
+    }
+
     duplicateDialog.close();
     showToast("Profile overwritten and merged successfully!", "success");
     switchView('profile-detail', existing.id);
   };
 
   dupBtnView.onclick = () => {
+    // 1. Remove from queue if it came from queue
+    if (activeQueueItemId) {
+      uploadQueue = uploadQueue.filter(i => i.id !== activeQueueItemId);
+      activeQueueItemId = null;
+      activeDraftTrainerData = null;
+      refreshQueueUI();
+    }
+    
+    // 2. Clear review pane form
+    const reviewPane = document.getElementById('intake-review-pane');
+    if (reviewPane) {
+      reviewPane.innerHTML = renderReviewFormMarkup(null);
+    }
+
     duplicateDialog.close();
     switchView('profile-detail', existing.id);
   };
@@ -1230,21 +1303,28 @@ function renderDirectory() {
     <div class="view-header">
       <div class="view-header-title">
         <h1>Trainer Directory</h1>
-        <p>Advanced search filters and discovery grids for instant trainer shortlisting.</p>
+        <p>Enterprise spreadsheet console with horizontal filters for direct candidate access.</p>
       </div>
       <button class="btn btn-primary" id="btn-add-profile-intake">➕ Add New Trainer</button>
     </div>
 
-    <div class="directory-layout">
-      <!-- Left sidebar filters -->
-      <aside class="glass-panel filter-panel" aria-label="Directory Filters">
-        <div class="filter-section">
-          <h4>Filters <button class="filter-clear-btn" id="btn-clear-filters">Clear All</button></h4>
+    <div class="directory-layout-vertical">
+      <!-- Search bar row -->
+      <div class="search-bar-row">
+        <div class="search-input-wrapper">
+          <span class="search-bar-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
+          </span>
+          <input type="search" id="filter-search-box" class="form-control" placeholder="Search by name, email, phone, skills, designation, or employer...">
         </div>
+        <button class="btn btn-secondary" id="btn-save-search-query">🔖 Bookmark</button>
+      </div>
 
+      <!-- Top filters panel -->
+      <aside class="glass-panel top-filter-panel" aria-label="Directory Filters">
         <!-- Location Filter -->
         <div class="filter-section">
-          <label for="filter-location" class="label-title">Location / City</label>
+          <label for="filter-location" class="label-title">📍 Location / City</label>
           <select id="filter-location" class="form-control">
             <option value="">All Locations</option>
             ${locations.map(loc => `<option value="${loc}">${loc}</option>`).join('')}
@@ -1253,7 +1333,7 @@ function renderDirectory() {
 
         <!-- Engagement Mode -->
         <div class="filter-section">
-          <span class="label-title">Engagement Model</span>
+          <span class="label-title">💼 Engagement Model</span>
           <div class="checkbox-pill-group">
             <input type="checkbox" id="e-freelance" value="Freelancer" class="checkbox-pill-item">
             <label for="e-freelance" class="checkbox-pill-label">Freelancer</label>
@@ -1271,8 +1351,8 @@ function renderDirectory() {
 
         <!-- Tech Skills checkable list -->
         <div class="filter-section">
-          <span class="label-title">Core Skills</span>
-          <div class="checkbox-pill-group" style="max-height: 240px; overflow-y: auto; padding-right: 0.25rem; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 0.5rem;">
+          <span class="label-title">⚡ Core Skills</span>
+          <div class="checkbox-pill-group" style="max-height: 100px; overflow-y: auto; padding-right: 0.25rem; border: 1px solid rgba(16,185,129,0.08); border-radius: 6px; padding: 0.5rem; width:100%;">
             ${skills.map(skill => `
               <input type="checkbox" id="${getSkillId(skill)}" value="${skill}" class="checkbox-pill-item">
               <label for="${getSkillId(skill)}" class="checkbox-pill-label">${skill}</label>
@@ -1282,7 +1362,7 @@ function renderDirectory() {
 
         <!-- Delivery Modes -->
         <div class="filter-section">
-          <span class="label-title">Delivery Mode</span>
+          <span class="label-title">🌐 Delivery Mode</span>
           <div class="checkbox-pill-group">
             <input type="checkbox" id="d-online" value="Online" class="checkbox-pill-item">
             <label for="d-online" class="checkbox-pill-label">Online</label>
@@ -1297,7 +1377,7 @@ function renderDirectory() {
 
         <!-- Commercial Pricing Slider range -->
         <div class="filter-section">
-          <span class="label-title">Hourly Budget Ceiling</span>
+          <span class="label-title">💰 Hourly Budget Ceiling</span>
           <div class="range-slider-group">
             <div class="range-slider-labels">
               <span>₹0</span>
@@ -1307,47 +1387,55 @@ function renderDirectory() {
           </div>
         </div>
 
-        <!-- Saved Searches bookmarks -->
-        <div class="filter-section">
-          <h4>Saved Queries</h4>
-          <div class="saved-searches-list">
-            <div class="saved-search-item" data-query="GenAI Chennai">
-              <span>GenAI in Chennai</span>
-              <small>Hybrid</small>
+        <!-- Saved Searches & Clear actions -->
+        <div class="filter-section" style="border-right: none;">
+          <span class="label-title" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+            Saved Queries
+            <button class="filter-clear-btn" id="btn-clear-filters" style="color: var(--accent-rose);">Clear All</button>
+          </span>
+          <div class="saved-searches-list" style="flex-direction: row; gap: 0.4rem; flex-wrap: wrap;">
+            <div class="saved-search-item" data-query="GenAI Chennai" style="padding: 0.3rem 0.5rem; font-size: 0.75rem;">
+              <span>GenAI (Chennai)</span>
             </div>
-            <div class="saved-search-item" data-query="MERN Stack">
-              <span>MERN Stack Experts</span>
-              <small>Freelance</small>
+            <div class="saved-search-item" data-query="MERN Stack" style="padding: 0.3rem 0.5rem; font-size: 0.75rem;">
+              <span>MERN Experts</span>
             </div>
           </div>
         </div>
       </aside>
 
-      <!-- Right primary cards container -->
-      <div class="directory-results">
-        <!-- Dynamic Preset Filter Banner Container -->
-        <div id="directory-preset-banner-container"></div>
+      <!-- Dynamic Preset Filter Banner Container -->
+      <div id="directory-preset-banner-container"></div>
 
-        <!-- Search bar row -->
-        <div class="search-bar-row">
-          <div class="search-input-wrapper">
-            <span class="search-bar-icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
-            </span>
-            <input type="search" id="filter-search-box" class="form-control" placeholder="Search by name, exact skills, designation, or employer...">
-          </div>
-          <button class="btn btn-secondary" id="btn-save-search-query">🔖 Bookmark</button>
+      <div class="results-meta-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+        <span id="results-count-text" style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">Showing 5 / 5 trainers matching current query</span>
+        <div class="filter-sort-wrapper" style="display: flex; align-items: center; gap: 0.5rem;">
+          <label for="filter-sort-select" style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">Sort by:</label>
+          <select id="filter-sort-select" class="form-control" style="min-height: 28px; padding: 0.15rem 1.5rem 0.15rem 0.5rem; font-size: 0.8rem; width: auto; border-radius: var(--radius-sm);">
+            <option value="default">Default Rank</option>
+            <option value="recent">Recents (Newest First)</option>
+            <option value="experience">Experience (High to Low)</option>
+          </select>
         </div>
+      </div>
 
-        <div class="results-meta-row">
-          <span id="results-count-text">Showing 5 / 5 trainers matching current query</span>
-          <span>Sort by: <strong>Default Rank</strong></span>
-        </div>
-
-        <!-- Directory results card grid -->
-        <div class="cards-grid" id="directory-cards-container">
-          <!-- Dynamic Injection -->
-        </div>
+      <!-- Spreadsheet sheet-like results table -->
+      <div class="sheet-table-wrapper">
+        <table class="sheet-table">
+          <thead>
+            <tr>
+              <th>Name & Title</th>
+              <th>Location</th>
+              <th>Core Skills</th>
+              <th>Stage</th>
+              <th>Email Address</th>
+              <th>Phone / WhatsApp</th>
+            </tr>
+          </thead>
+          <tbody id="directory-cards-container">
+            <!-- Dynamic Injection -->
+          </tbody>
+        </table>
       </div>
     </div>
   `;
@@ -1368,6 +1456,11 @@ function setupDirectoryListeners() {
   // Input changes trigger recalculations
   searchBox.addEventListener('input', triggerFilteredResults);
   locationSelect.addEventListener('change', triggerFilteredResults);
+  
+  const sortSelect = document.getElementById('filter-sort-select');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', triggerFilteredResults);
+  }
   
   rateSlider.addEventListener('input', () => {
     rateIndicator.textContent = `₹${parseInt(rateSlider.value).toLocaleString()}`;
@@ -1410,6 +1503,10 @@ function setupDirectoryListeners() {
     rateSlider.value = 6000;
     rateIndicator.textContent = '₹6,000';
     document.querySelectorAll('.checkbox-pill-item').forEach(chk => chk.checked = false);
+    
+    const sortSelect = document.getElementById('filter-sort-select');
+    if (sortSelect) sortSelect.value = 'default';
+    
     activeDirectoryFilterPreset = null; // Clear pre-applied filter presets
     triggerFilteredResults();
     showToast("Filters reset successfully.", "warning");
@@ -1432,9 +1529,9 @@ function triggerFilteredResults() {
   const rateCeiling = rateSliderVal ? parseFloat(rateSliderVal.value) : 6000;
   
   // Extract selected engagement models array
-  const selectedEngagements = Array.from(document.querySelectorAll('.filter-panel input[id^="e-"]:checked')).map(c => c.value);
-  const selectedSkills = Array.from(document.querySelectorAll('.filter-panel input[id^="s-"]:checked')).map(c => c.value.toLowerCase());
-  const selectedDeliveries = Array.from(document.querySelectorAll('.filter-panel input[id^="d-"]:checked')).map(c => c.value);
+  const selectedEngagements = Array.from(document.querySelectorAll('.top-filter-panel input[id^="e-"]:checked')).map(c => c.value);
+  const selectedSkills = Array.from(document.querySelectorAll('.top-filter-panel input[id^="s-"]:checked')).map(c => c.value.toLowerCase());
+  const selectedDeliveries = Array.from(document.querySelectorAll('.top-filter-panel input[id^="d-"]:checked')).map(c => c.value);
 
   const trainers = state.getTrainers();
 
@@ -1449,10 +1546,10 @@ function triggerFilteredResults() {
 
       if (presetLabel) {
         bannerContainer.innerHTML = `
-          <div class="glass-panel preset-filter-banner" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1rem; margin-bottom: 1.25rem; border-color: rgba(99, 102, 241, 0.25); background: rgba(99, 102, 241, 0.04); border-radius: 8px; animation: slideIn 0.3s ease;">
+          <div class="glass-panel preset-filter-banner" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1rem; margin-bottom: 1.25rem; border-color: rgba(37, 99, 235, 0.25); background: rgba(37, 99, 235, 0.04); border-radius: 8px; animation: slideIn 0.3s ease;">
             <span style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem;">
               <span style="font-size: 1.1rem; line-height: 1;">🎯</span>
-              Applied dashboard query: <strong style="color: var(--primary-indigo); font-weight: 600; text-shadow: 0 0 10px rgba(99, 102, 241, 0.25);">${presetLabel}</strong>
+              Applied dashboard query: <strong style="color: var(--primary-indigo); font-weight: 600; text-shadow: 0 0 10px rgba(37, 99, 235, 0.25);">${presetLabel}</strong>
             </span>
             <button id="btn-clear-preset-banner" class="btn btn-secondary" style="padding: 0.25rem 0.65rem; font-size: 0.75rem; border-color: rgba(244, 63, 94, 0.2); color: var(--accent-rose); background: rgba(244, 63, 94, 0.05); font-weight: 500;">Clear Filter</button>
           </div>
@@ -1479,13 +1576,19 @@ function triggerFilteredResults() {
       if (activeDirectoryFilterPreset.hasAssignments && t.assignments.length === 0) return false;
     }
 
-    // 2. Text Search matching (Name, designation, skills list, employer)
+    // 2. Text Search matching (Name, email, phone, designation, skills list, employer)
     const nameMatch = t.name.toLowerCase().includes(searchVal);
     const designMatch = t.designation.toLowerCase().includes(searchVal);
     const employerMatch = t.currentEmployer.toLowerCase().includes(searchVal);
     const skillsMatch = t.skills.some(s => s.toLowerCase().includes(searchVal));
+    const emailMatch = t.email ? t.email.toLowerCase().includes(searchVal) : false;
     
-    if (searchVal && !(nameMatch || designMatch || employerMatch || skillsMatch)) return false;
+    // Normalize phone characters (removing spaces, plus signs, dashes, parentheses)
+    const cleanSearchVal = searchVal.replace(/[\s\-\+\(\)]/g, '');
+    const cleanPhone = t.phone ? t.phone.replace(/[\s\-\+\(\)]/g, '') : '';
+    const phoneMatch = cleanPhone && cleanSearchVal ? cleanPhone.includes(cleanSearchVal) : false;
+    
+    if (searchVal && !(nameMatch || designMatch || employerMatch || skillsMatch || emailMatch || phoneMatch)) return false;
 
     // 3. Location
     if (locationVal && t.location.toLowerCase() !== locationVal.toLowerCase()) return false;
@@ -1510,6 +1613,20 @@ function triggerFilteredResults() {
     return true;
   });
 
+  // Sort the results dynamically
+  const sortSelectVal = document.getElementById('filter-sort-select');
+  const sortBy = sortSelectVal ? sortSelectVal.value : 'default';
+  
+  if (sortBy === 'recent') {
+    filtered.sort((a, b) => {
+      const dateA = a.dateAdded ? new Date(a.dateAdded) : new Date(0);
+      const dateB = b.dateAdded ? new Date(b.dateAdded) : new Date(0);
+      return dateB - dateA;
+    });
+  } else if (sortBy === 'experience') {
+    filtered.sort((a, b) => (b.totalExperience || 0) - (a.totalExperience || 0));
+  }
+
   // Render cards grid
   const container = document.getElementById('directory-cards-container');
   const countLabel = document.getElementById('results-count-text');
@@ -1518,46 +1635,53 @@ function triggerFilteredResults() {
 
   if (filtered.length === 0) {
     container.innerHTML = `
-      <div class="glass-panel" style="grid-column: 1 / -1; padding: 4rem 2rem; text-align: center; color: var(--text-muted);">
-        <p style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔍 No matching trainers found</p>
-        <p style="font-size: 0.85rem;">Adjust search filters, clear active tags, or check pricing ceiling.</p>
-      </div>
+      <tr>
+        <td colspan="6" style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);">
+          <p style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔍 No matching trainers found</p>
+          <p style="font-size: 0.85rem;">Adjust search filters, clear active tags, or check pricing ceiling.</p>
+        </td>
+      </tr>
     `;
     return;
   }
 
   container.innerHTML = filtered.map(t => {
     const initials = t.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-    
+    const skillsListStr = t.skills.slice(0, 4).map(skill => `<span class="skill-tag">${skill}</span>`).join('') +
+      (t.skills.length > 4 ? `<span class="skill-tag" style="background: rgba(37, 99, 235, 0.05); color: var(--primary-indigo);">+${t.skills.length - 4}</span>` : '');
+
     return `
-      <div class="glass-panel trainer-card" data-id="${t.id}" tabindex="0" role="button" aria-label="View profile for ${t.name}">
-        <div class="trainer-card-header">
-          <div class="trainer-identity">
-            <div class="trainer-avatar">${initials}</div>
-            <div class="trainer-names">
+      <tr class="sheet-row" data-id="${t.id}" tabindex="0" role="button" aria-label="View profile for ${t.name}">
+        <td>
+          <div class="sheet-identity">
+            <div class="sheet-avatar">${initials}</div>
+            <div class="sheet-names">
               <h4>${t.name}</h4>
               <p>${t.designation || 'Specialist Partner'} at ${t.currentEmployer || 'Independent'}</p>
             </div>
           </div>
+        </td>
+        <td>📍 ${t.location}</td>
+        <td>
+          <div class="trainer-card-skills">
+            ${skillsListStr}
+          </div>
+        </td>
+        <td>
           <span class="lifecycle-badge ${t.status.toLowerCase().replace(/\s/g, '-')}">${t.status}</span>
-        </div>
-
-        <div class="trainer-card-skills">
-          ${t.skills.slice(0, 4).map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
-          ${t.skills.length > 4 ? `<span class="skill-tag" style="background: rgba(99, 102, 241, 0.05); color: var(--primary-indigo);">+${t.skills.length - 4} more</span>` : ''}
-        </div>
-
-        <div class="trainer-card-footer">
-          <span>📍 ${t.location} (${t.deliveryMode})</span>
-          <span>📅 Added: ${formatDate(t.dateAdded || t.dateParsed || new Date().toISOString())}</span>
-          <span>Hourly: <strong class="trainer-rate-value">${t.hourlyExpectation > 0 ? `₹${t.hourlyExpectation.toLocaleString()}` : 'N/A'}</strong></span>
-        </div>
-      </div>
+        </td>
+        <td style="font-family: monospace; color: var(--text-secondary); font-size: 0.85rem;">
+          ${t.email}
+        </td>
+        <td style="color: var(--text-secondary);">
+          ${t.phone}
+        </td>
+      </tr>
     `;
   }).join('');
 
   // Attach card click handlers
-  container.querySelectorAll('.trainer-card').forEach(card => {
+  container.querySelectorAll('tr.sheet-row').forEach(card => {
     card.addEventListener('click', () => {
       switchView('profile-detail', card.dataset.id);
     });
@@ -1575,7 +1699,7 @@ function triggerFilteredResults() {
 // --------------------------------------------------------------------------
 // 3. View Renderers - (D) Trainer Details View
 // --------------------------------------------------------------------------
-function renderTrainerDetail(trainerId) {
+function renderTrainerDetail(trainerId, activeTabId = 'tab-overview') {
   const trainer = state.getTrainerById(trainerId);
   if (!trainer) {
     switchView('directory');
@@ -1606,21 +1730,28 @@ function renderTrainerDetail(trainerId) {
           </div>
         </div>
 
-        <!-- Quick stage dropdown selector -->
-        <div class="form-group" style="min-width: 200px;">
-          <label for="detail-status-changer">Operational Stage</label>
-          <select id="detail-status-changer" class="form-control" style="background: rgba(99, 102, 241, 0.05); border-color: rgba(99, 102, 241, 0.2);">
-            <option value="New Profile" ${trainer.status === 'New Profile' ? 'selected' : ''}>New Profile</option>
-            <option value="Contact Pending" ${trainer.status === 'Contact Pending' ? 'selected' : ''}>Contact Pending</option>
-            <option value="Contacted" ${trainer.status === 'Contacted' ? 'selected' : ''}>Contacted</option>
-            <option value="Interested" ${trainer.status === 'Interested' ? 'selected' : ''}>Interested</option>
-            <option value="Follow-up Required" ${trainer.status === 'Follow-up Required' ? 'selected' : ''}>Follow-up Required</option>
-            <option value="Demo Scheduled" ${trainer.status === 'Demo Scheduled' ? 'selected' : ''}>Demo Scheduled</option>
-            <option value="Approved" ${trainer.status === 'Approved' ? 'selected' : ''}>Approved</option>
-            <option value="Assigned" ${trainer.status === 'Assigned' ? 'selected' : ''}>Assigned</option>
-            <option value="Active" ${trainer.status === 'Active' ? 'selected' : ''}>Active</option>
-            <option value="Inactive" ${trainer.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
-          </select>
+        <!-- Quick stage dropdown selector & Update Resume button -->
+        <div style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;">
+          <div class="form-group" style="min-width: 200px; margin-bottom: 0;">
+            <label for="detail-status-changer">Operational Stage</label>
+            <select id="detail-status-changer" class="form-control" style="background: rgba(59, 122, 87, 0.05); border-color: rgba(59, 122, 87, 0.2);">
+              <option value="New Profile" ${trainer.status === 'New Profile' ? 'selected' : ''}>New Profile</option>
+              <option value="Contact Pending" ${trainer.status === 'Contact Pending' ? 'selected' : ''}>Contact Pending</option>
+              <option value="Contacted" ${trainer.status === 'Contacted' ? 'selected' : ''}>Contacted</option>
+              <option value="Interested" ${trainer.status === 'Interested' ? 'selected' : ''}>Interested</option>
+              <option value="Follow-up Required" ${trainer.status === 'Follow-up Required' ? 'selected' : ''}>Follow-up Required</option>
+              <option value="Approved" ${trainer.status === 'Approved' ? 'selected' : ''}>Approved</option>
+              <option value="Assigned" ${trainer.status === 'Assigned' ? 'selected' : ''}>Assigned</option>
+              <option value="Active" ${trainer.status === 'Active' ? 'selected' : ''}>Active</option>
+              <option value="Inactive" ${trainer.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <button class="btn btn-secondary" id="btn-update-resume" style="padding: 0.55rem 1rem; border-color: var(--primary-indigo); background: rgba(59, 122, 87, 0.05); position: relative; height: 44px; display: inline-flex; align-items: center; justify-content: center; min-width: 150px; cursor: pointer;">
+              📄 Update Resume
+              <input type="file" id="update-resume-input" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1633,15 +1764,15 @@ function renderTrainerDetail(trainerId) {
 
       <!-- Detail views tab headers -->
       <div class="tab-headers-row">
-        <button class="tab-btn active" data-tab="tab-overview">Overview</button>
-        <button class="tab-btn" data-tab="tab-enrichment">HR Enrichment</button>
-        <button class="tab-btn" data-tab="tab-timeline">Interaction Logs (${trainer.timeline.length})</button>
-        <button class="tab-btn" data-tab="tab-assignments">Assignments (${trainer.assignments.length})</button>
-        <button class="tab-btn" data-tab="tab-email">Email Client</button>
+        <button class="tab-btn ${activeTabId === 'tab-overview' ? 'active' : ''}" data-tab="tab-overview">Overview</button>
+        <button class="tab-btn ${activeTabId === 'tab-enrichment' ? 'active' : ''}" data-tab="tab-enrichment">HR Enrichment</button>
+        <button class="tab-btn ${activeTabId === 'tab-timeline' ? 'active' : ''}" data-tab="tab-timeline">Interaction Logs (${trainer.timeline.length})</button>
+        <button class="tab-btn ${activeTabId === 'tab-assignments' ? 'active' : ''}" data-tab="tab-assignments">Assignments (${trainer.assignments.length})</button>
+        <button class="tab-btn ${activeTabId === 'tab-email' ? 'active' : ''}" data-tab="tab-email">Email Client</button>
       </div>
 
       <!-- Tab Content - 1. OVERVIEW -->
-      <div class="tab-content-panel active" id="tab-overview">
+      <div class="tab-content-panel ${activeTabId === 'tab-overview' ? 'active' : ''}" id="tab-overview">
         <div class="profile-grid">
           <!-- Left details blocks -->
           <div class="details-block">
@@ -1679,9 +1810,8 @@ function renderTrainerDetail(trainerId) {
               <h4>HR Screening Enrichment</h4>
               <div class="details-item" style="margin-bottom: 1rem;"><span class="label">Audience Focus Fit</span><span class="val">${trainer.audienceFit.join(', ') || 'Working professionals'}</span></div>
               <div class="details-item" style="margin-bottom: 1rem;"><span class="label">Delivery Flexibility</span><span class="val">Prefers ${trainer.deliveryMode} delivery (Travel Willingness: ${trainer.travelWillingness})</span></div>
-              <div class="details-item" style="margin-bottom: 1rem;"><span class="label">Expected Hourly Rate</span><span class="val" style="color:var(--primary-cyan); font-weight:700;">₹${trainer.hourlyExpectation ? trainer.hourlyExpectation.toLocaleString() : 'N/A'} / Hour</span></div>
-              <div class="details-item" style="margin-bottom: 1rem;"><span class="label">Expected Daily Rate</span><span class="val">₹${trainer.dailyRate ? trainer.dailyRate.toLocaleString() : 'N/A'} / Day</span></div>
-              <div class="details-item" style="margin-bottom: 1rem;"><span class="label">Current/Expected CTC</span><span class="val">${trainer.currentCTC || 'N/A'} / ${trainer.expectedCTC || 'N/A'}</span></div>
+              <div class="details-item" style="margin-bottom: 1rem;"><span class="label">Current CTC</span><span class="val" style="color:var(--primary-cyan); font-weight:700;">${trainer.currentCTC || 'N/A'}</span></div>
+              <div class="details-item" style="margin-bottom: 1rem;"><span class="label">Expected CTC</span><span class="val" style="color:var(--primary-indigo); font-weight:700;">${trainer.expectedCTC || 'N/A'}</span></div>
               <div class="details-item" style="margin-bottom: 1rem;"><span class="label">Commercial Negotiability</span><span class="val">${trainer.negotiability}</span></div>
               <div class="details-item" style="margin-bottom: 1rem;"><span class="label">Sourcing Sourced Channel</span><span class="val" style="color:var(--accent-amber); font-weight:600;">${trainer.source}</span></div>
               <div class="details-item"><span class="label">Availability Timeline</span><span class="val">${trainer.availabilityTimeline}</span></div>
@@ -1691,7 +1821,7 @@ function renderTrainerDetail(trainerId) {
       </div>
 
       <!-- Tab Content - 2. HR ENRICHMENT FORM -->
-      <div class="tab-content-panel" id="tab-enrichment">
+      <div class="tab-content-panel ${activeTabId === 'tab-enrichment' ? 'active' : ''}" id="tab-enrichment">
         <div class="glass-panel">
           <form class="tms-form" id="detail-enrichment-form" novalidate>
             <div class="form-row">
@@ -1754,12 +1884,12 @@ function renderTrainerDetail(trainerId) {
 
             <div class="form-row">
               <div class="form-group">
-                <label for="e-edit-hourly">Hourly Expectation (₹)</label>
-                <input type="number" id="e-edit-hourly" class="form-control" value="${trainer.hourlyExpectation}">
+                <label for="e-edit-current-ctc">Current CTC</label>
+                <input type="text" id="e-edit-current-ctc" class="form-control" value="${trainer.currentCTC || ''}" placeholder="e.g. ₹18,00,000">
               </div>
               <div class="form-group">
-                <label for="e-edit-daily">Daily Expected Rate (₹)</label>
-                <input type="number" id="e-edit-daily" class="form-control" value="${trainer.dailyRate}">
+                <label for="e-edit-expected-ctc">Expected CTC</label>
+                <input type="text" id="e-edit-expected-ctc" class="form-control" value="${trainer.expectedCTC || ''}" placeholder="e.g. ₹22,00,000">
               </div>
             </div>
 
@@ -1793,7 +1923,7 @@ function renderTrainerDetail(trainerId) {
       </div>
 
       <!-- Tab Content - 3. INTERACTION HISTORY TIMELINE -->
-      <div class="tab-content-panel" id="tab-timeline">
+      <div class="tab-content-panel ${activeTabId === 'tab-timeline' ? 'active' : ''}" id="tab-timeline">
         <div class="timeline-controls">
           <h3 style="font-family:'Outfit', sans-serif; font-size:1.15rem;">Interaction History</h3>
           <button class="btn btn-primary" style="padding:0.5rem 1rem;" id="btn-add-interaction-timeline">➕ Add Log Note</button>
@@ -1824,7 +1954,7 @@ function renderTrainerDetail(trainerId) {
       </div>
 
       <!-- Tab Content - 4. ASSIGNMENT HISTORY -->
-      <div class="tab-content-panel" id="tab-assignments">
+      <div class="tab-content-panel ${activeTabId === 'tab-assignments' ? 'active' : ''}" id="tab-assignments">
         <div class="glass-panel">
           <div class="panel-header">
             <h3>Past Program Assignments</h3>
@@ -1871,7 +2001,7 @@ function renderTrainerDetail(trainerId) {
       </div>
 
       <!-- Tab Content - 5. EMAIL CLIENT (BREVO LOGS CONNECT) -->
-      <div class="tab-content-panel" id="tab-email">
+      <div class="tab-content-panel ${activeTabId === 'tab-email' ? 'active' : ''}" id="tab-email">
         <div class="glass-panel email-client-container">
           <!-- Template Selector Sidebar -->
           <div class="email-templates-sidebar">
@@ -1913,7 +2043,7 @@ function renderTrainerDetail(trainerId) {
 
             <div style="display:flex; justify-content:flex-end;">
               <button class="btn btn-primary" id="btn-mail-dispatch">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.25rem;"><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Dispatch via Brevo Engine
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.25rem;"><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Dispatch Email
               </button>
             </div>
           </div>
@@ -1979,7 +2109,6 @@ function renderTrainerDetail(trainerId) {
                 <option value="Contacted">Contacted</option>
                 <option value="Interested">Interested</option>
                 <option value="Follow-up Required">Follow-up Required</option>
-                <option value="Demo Scheduled">Demo Scheduled</option>
                 <option value="Approved">Approved</option>
                 <option value="Assigned">Assigned</option>
                 <option value="Active">Active</option>
@@ -2004,11 +2133,10 @@ function renderTrainerDetail(trainerId) {
 // Sub-utility: renders node-timeline steps
 function renderLifecycleNodesMarkup(currentStatus) {
   const stages = [
-    "New Profile", "Contacted", "Demo Scheduled", "Approved", "Assigned", "Active"
+    "New Profile", "Contacted", "Approved", "Assigned", "Active"
   ];
   
   const activeIdx = stages.indexOf(currentStatus);
-  // Fallback check if state matches a middle stage
   let matchedIndex = activeIdx !== -1 ? activeIdx : 0;
   if (currentStatus === "Contact Pending" || currentStatus === "Interested" || currentStatus === "Follow-up Required") {
     matchedIndex = 1; // map to 'Contacted' visual
@@ -2031,27 +2159,130 @@ function setupDetailListeners(trainer) {
   const tabs = document.querySelectorAll('.tab-btn');
   const panels = document.querySelectorAll('.tab-content-panel');
 
+  // Resume Update file selection listener
+  const updateInput = document.getElementById('update-resume-input');
+  if (updateInput) {
+    updateInput.addEventListener('change', async () => {
+      const file = updateInput.files[0];
+      if (!file) return;
+      
+      showToast("Ingesting new resume updates...", "warning");
+      
+      try {
+        const parsed = await AIParsingService.parseResume(file, (msg) => {
+          console.log("Resume update progress:", msg);
+        });
+        
+        // Merge parsed fields into existing trainer
+        const updatedFields = {};
+        
+        // Skills merging (append unique new skills)
+        const currentSkills = trainer.skills || [];
+        const newSkills = Array.isArray(parsed.skills) ? parsed.skills : (parsed.skills ? parsed.skills.split(',').map(s => s.trim()) : []);
+        const mergedSkills = [...new Set([...currentSkills, ...newSkills])].filter(Boolean);
+        if (mergedSkills.length > currentSkills.length) {
+          updatedFields.skills = mergedSkills;
+        }
+        
+        // Certifications merging (append unique new certifications)
+        const currentCerts = trainer.certifications || [];
+        const newCerts = Array.isArray(parsed.certifications) ? parsed.certifications : (parsed.certifications ? parsed.certifications.split(',').map(s => s.trim()) : []);
+        const mergedCerts = [...new Set([...currentCerts, ...newCerts])].filter(Boolean);
+        if (mergedCerts.length > currentCerts.length) {
+          updatedFields.certifications = mergedCerts;
+        }
+        
+        // Merge basic text fields if they were previously default or empty
+        const textFields = ['currentEmployer', 'designation', 'education', 'location', 'linkedin'];
+        textFields.forEach(f => {
+          const currentVal = trainer[f];
+          const parsedVal = parsed[f];
+          if (parsedVal && parsedVal !== "Bengaluru" && parsedVal !== "Unknown Trainer" && parsedVal !== "Independent Partner" && parsedVal !== "Trainer Associate" && parsedVal !== "Bachelor of Engineering, Anna University") {
+            if (!currentVal || currentVal === 'None' || currentVal === 'Independent Partner' || currentVal === 'Trainer Associate' || currentVal === 'Graduate Profile' || currentVal === 'Bengaluru') {
+              updatedFields[f] = parsedVal;
+            }
+          }
+        });
+
+        // Experience updates (take max value)
+        if (parsed.totalExperience && parsed.totalExperience > (trainer.totalExperience || 0)) {
+          updatedFields.totalExperience = parsed.totalExperience;
+          updatedFields.teachingExperience = Math.max(trainer.teachingExperience || 0, parsed.teachingExperience || 0);
+        }
+        
+        state.updateTrainer(trainer.id, updatedFields);
+        
+        // Add interaction timeline log
+        const addedSkillsCount = mergedSkills.length - currentSkills.length;
+        const addedCertsCount = mergedCerts.length - currentCerts.length;
+        
+        let summary = `Uploaded updated resume file: ${file.name}. `;
+        if (addedSkillsCount > 0) summary += `Added ${addedSkillsCount} new skills (${mergedSkills.slice(currentSkills.length).join(', ')}). `;
+        if (addedCertsCount > 0) summary += `Added ${addedCertsCount} new certifications (${mergedCerts.slice(currentCerts.length).join(', ')}). `;
+        if (Object.keys(updatedFields).length === 0 || (addedSkillsCount === 0 && addedCertsCount === 0)) {
+          summary += "Profile already had the latest information; no new updates to append.";
+        }
+        
+        state.addTrainerInteraction(trainer.id, {
+          recruiter: "Talent Operations (System)",
+          type: "call",
+          summary: summary,
+          standpoint: "Merged updated qualifications.",
+          concern: "",
+          nextAction: "Review updated profile details",
+          followUpDate: ""
+        });
+        
+        const activeTabBtn = document.querySelector('.tab-btn.active');
+        const activeTabId = activeTabBtn ? activeTabBtn.dataset.tab : 'tab-overview';
+        
+        showToast("Resume parsed and new updates successfully merged!", "success");
+        renderTrainerDetail(trainer.id, activeTabId);
+        
+      } catch (err) {
+        console.error("Resume update error:", err);
+        showToast(`Error parsing updated resume: ${err.message}`, "danger");
+      }
+    });
+  }
+
   // Back trigger
   backBtn.addEventListener('click', () => switchView('directory'));
 
   // Direct status changer dropdown
   statusChanger.addEventListener('change', () => {
     const nextStatus = statusChanger.value;
-    state.updateTrainer(trainer.id, { status: nextStatus });
-    
-    // Add timeline log automatically
-    state.addTrainerInteraction(trainer.id, {
-      recruiter: "Talent Operations (System)",
-      type: "call",
-      summary: `Manually transitioned profile operational stage to "${nextStatus}".`,
-      standpoint: "",
-      concern: "",
-      nextAction: `Follow operational checklist for ${nextStatus}`,
-      followUpDate: ""
-    });
-
-    showToast(`Operational stage updated to ${nextStatus}`, 'success');
-    renderTrainerDetail(trainer.id); // dynamic refresh
+    if (nextStatus === "Follow-up Required") {
+      // Revert selection first in case they cancel
+      statusChanger.value = trainer.status;
+      openFollowupScheduler(trainer, (scheduledData) => {
+        state.updateTrainer(trainer.id, { status: "Follow-up Required" });
+        state.addTrainerInteraction(trainer.id, {
+          recruiter: "Talent Operations (System)",
+          type: "call",
+          summary: `Manually transitioned profile operational stage to "Follow-up Required". Reminder Scheduled: ${scheduledData.note}`,
+          standpoint: "",
+          concern: "",
+          nextAction: `Follow-up on ${scheduledData.date} at ${scheduledData.time}`,
+          followUpDate: scheduledData.date
+        });
+        showToast("Follow-up workflow initialized and reminder scheduled!", "success");
+        renderTrainerDetail(trainer.id, 'tab-overview');
+      });
+    } else {
+      state.updateTrainer(trainer.id, { status: nextStatus });
+      state.addTrainerInteraction(trainer.id, {
+        recruiter: "Talent Operations (System)",
+        type: "call",
+        summary: `Manually transitioned profile operational stage to "${nextStatus}".`,
+        standpoint: "",
+        concern: "",
+        nextAction: `Follow operational checklist for ${nextStatus}`,
+        followUpDate: ""
+      });
+      showToast(`Operational stage updated to ${nextStatus}`, 'success');
+      renderTrainerDetail(trainer.id, 'tab-overview'); // dynamic refresh
+    }
   });
 
   // Tab switcher trigger
@@ -2080,8 +2311,8 @@ function setupDetailListeners(trainer) {
       const certsEl = document.getElementById('e-edit-certs');
       const engagementEl = document.getElementById('e-edit-engagement');
       const deliveryEl = document.getElementById('e-edit-delivery');
-      const hourlyEl = document.getElementById('e-edit-hourly');
-      const dailyEl = document.getElementById('e-edit-daily');
+      const currentCtcEl = document.getElementById('e-edit-current-ctc');
+      const expectedCtcEl = document.getElementById('e-edit-expected-ctc');
       const travelEl = document.getElementById('e-edit-travel');
       const negotiableEl = document.getElementById('e-edit-negotiable');
       const audienceEl = document.getElementById('e-edit-audience');
@@ -2124,8 +2355,8 @@ function setupDetailListeners(trainer) {
         certifications: certsEl ? certsEl.value.trim() : "",
         engagementPreference: engagementEl ? engagementEl.value : "Freelancer",
         deliveryMode: deliveryEl ? deliveryEl.value : "Hybrid",
-        hourlyExpectation: hourlyEl ? (parseFloat(hourlyEl.value) || 0) : 0,
-        dailyRate: dailyEl ? (parseFloat(dailyEl.value) || 0) : 0,
+        currentCTC: currentCtcEl ? currentCtcEl.value.trim() : "",
+        expectedCTC: expectedCtcEl ? expectedCtcEl.value.trim() : "",
         travelWillingness: travelEl ? travelEl.value : "Yes",
         negotiability: negotiableEl ? negotiableEl.value : "Negotiable",
         audienceFit: audienceEl ? audienceEl.value.trim() : ""
@@ -2145,7 +2376,7 @@ function setupDetailListeners(trainer) {
       });
 
       showToast("Trainer enrichment logs saved successfully!", "success");
-      renderTrainerDetail(trainer.id); // dynamic refresh
+      renderTrainerDetail(trainer.id, 'tab-enrichment'); // dynamic refresh
     } catch (err) {
       console.error("WW-TMS: Enrichment update failed:", err);
       showToast(`Error updating trainer profile: ${err.message}`, 'danger');
@@ -2183,14 +2414,29 @@ function setupDetailListeners(trainer) {
       followUpDate: document.getElementById('log-follow-up-date').value
     };
 
-    if (nextStage) {
-      payload.updateStage = nextStage;
-    }
+    if (nextStage === "Follow-up Required") {
+      logDialog.close();
+      openFollowupScheduler(trainer, (scheduledData) => {
+        payload.updateStage = "Follow-up Required";
+        payload.summary += ` | Follow-up Scheduled: ${scheduledData.note}`;
+        payload.followUpDate = scheduledData.date;
+        payload.nextAction = `Follow-up at ${scheduledData.time} | ` + payload.nextAction;
 
-    state.addTrainerInteraction(trainer.id, payload);
-    logDialog.close();
-    showToast("Interaction logged successfully!", "success");
-    renderTrainerDetail(trainer.id); // dynamic refresh
+        state.addTrainerInteraction(trainer.id, payload);
+        showToast("Interaction logged & follow-up reminder scheduled!", "success");
+        renderTrainerDetail(trainer.id, 'tab-timeline');
+      }, () => {
+        logDialog.showModal();
+      });
+    } else {
+      if (nextStage) {
+        payload.updateStage = nextStage;
+      }
+      state.addTrainerInteraction(trainer.id, payload);
+      logDialog.close();
+      showToast("Interaction logged successfully!", "success");
+      renderTrainerDetail(trainer.id, 'tab-timeline'); // dynamic refresh
+    }
   });
 
   // --------------------------------------------------------------------------
@@ -2255,38 +2501,59 @@ function setupDetailListeners(trainer) {
     });
   });
 
-  // Email client Dispatch button trigger
-  document.getElementById('btn-mail-dispatch').addEventListener('click', () => {
-    const sender = document.getElementById('mail-sender').value;
-    const subject = document.getElementById('mail-subject').value;
-    const body = document.getElementById('mail-body').value;
+  // Email client Dispatch button trigger (Refortified to always bind and fire correctly)
+  const mailDispatchBtn = document.getElementById('btn-mail-dispatch');
+  if (mailDispatchBtn) {
+    // Safely replace to scrub any duplicate listeners in dynamic DOM re-renders
+    const scrubbedBtn = mailDispatchBtn.cloneNode(true);
+    mailDispatchBtn.parentNode.replaceChild(scrubbedBtn, mailDispatchBtn);
+    
+    scrubbedBtn.addEventListener('click', () => {
+      const senderEl = document.getElementById('mail-sender');
+      const subjectEl = document.getElementById('mail-subject');
+      const bodyEl = document.getElementById('mail-body');
+      
+      const sender = senderEl ? senderEl.value : 'talent@wrenchwise.in';
+      const subject = subjectEl ? subjectEl.value.trim() : '';
+      const body = bodyEl ? bodyEl.value.trim() : '';
 
-    // Log the touchpoint inside the dashboard outbox database
-    state.dispatchBrandedEmail({
-      recipientEmail: trainer.email,
-      recipientName: trainer.name,
-      senderIdentity: sender,
-      subject: subject,
-      body: body,
-      trainerId: trainer.id
+      if (!subject) {
+        showToast("Email Subject is required!", "danger");
+        return;
+      }
+      if (!body) {
+        showToast("Email Body is required!", "danger");
+        return;
+      }
+
+      // 1. First save state and record the outreach correspondence
+      state.dispatchBrandedEmail({
+        recipientEmail: trainer.email,
+        recipientName: trainer.name,
+        senderIdentity: sender,
+        subject: subject,
+        body: body,
+        trainerId: trainer.id
+      });
+
+      // 2. Refresh the details dashboard and focus the interaction logs tab
+      renderTrainerDetail(trainer.id, 'tab-timeline'); 
+
+      // 3. Inform the user of successful log
+      showToast("Email successfully dispatched and logged in your outbox!", "success");
+
+      // 4. Safely open the mail client asynchronously so browser navigation does not abort execution threads
+      setTimeout(() => {
+        const mailtoUrl = `mailto:${encodeURIComponent(trainer.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        const link = document.createElement('a');
+        link.href = mailtoUrl;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }, 150);
     });
-
-    // Programmatically trigger native mail client to actually send the email
-    const mailtoUrl = `mailto:${encodeURIComponent(trainer.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailtoUrl;
-
-    showToast("Email logged in outbox and opened in your native mail client!", "success");
-    
-    // Switch to timeline tab automatically to show the email log
-    tabs.forEach(t => t.classList.remove('active'));
-    panels.forEach(p => p.classList.remove('active'));
-    
-    const timelineTab = Array.from(tabs).find(t => t.dataset.tab === 'tab-timeline');
-    timelineTab.classList.add('active');
-    document.getElementById('tab-timeline').classList.add('active');
-    
-    renderTrainerDetail(trainer.id); // dynamic refresh
-  });
+  }
 }
 
 function updateEmailClientPane(trainer, templateId) {
@@ -2524,6 +2791,254 @@ function renderSettings() {
 }
 
 // --------------------------------------------------------------------------
+// Global Follow-up Scheduler Helper
+// --------------------------------------------------------------------------
+function openFollowupScheduler(trainer, onSchedule, onCancel = null) {
+  const dialog = document.getElementById('followup-scheduler-dialog');
+  const form = document.getElementById('followup-scheduler-form');
+  const trainerIdInput = document.getElementById('followup-trainer-id');
+  const trainerNameInput = document.getElementById('followup-trainer-name');
+  const dateInput = document.getElementById('followup-date');
+  const timeInput = document.getElementById('followup-time');
+  const noteInput = document.getElementById('followup-note');
+  const cancelBtn = document.getElementById('btn-followup-cancel');
+
+  trainerIdInput.value = trainer.id;
+  trainerNameInput.value = trainer.name;
+  
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  dateInput.value = tomorrow.toISOString().split('T')[0];
+  timeInput.value = "10:00";
+  noteInput.value = `Follow-up call with ${trainer.name} to check availability and discuss onboarding steps.`;
+
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    
+    const reminderData = {
+      trainerId: trainer.id,
+      trainerName: trainer.name,
+      date: dateInput.value,
+      time: timeInput.value,
+      note: noteInput.value
+    };
+
+    state.addReminder(reminderData);
+    updateSidebarRemindersCount();
+
+    dialog.close();
+    if (onSchedule) onSchedule(reminderData);
+  };
+
+  cancelBtn.onclick = () => {
+    dialog.close();
+    if (onCancel) onCancel();
+  };
+
+  dialog.showModal();
+}
+
+function updateSidebarRemindersCount() {
+  const badge = document.getElementById('reminders-count-badge');
+  if (badge) {
+    const pendingCount = state.getReminders().filter(r => r.status === 'Pending').length;
+    badge.textContent = pendingCount;
+    badge.style.display = pendingCount > 0 ? 'inline-block' : 'none';
+  }
+}
+
+// Session set to keep track of triggered notifications in current run to prevent duplicates
+const triggeredReminderNotifications = new Set();
+
+function startReminderCheckScheduler() {
+  // Ensure the toast container exists in the document
+  let container = document.getElementById('tms-reminder-toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'tms-reminder-toast-container';
+    document.body.appendChild(container);
+  }
+
+  // Periodic interval check every 15 seconds
+  setInterval(() => {
+    const now = new Date();
+    const reminders = state.getReminders();
+    const pendingReminders = reminders.filter(r => r.status === 'Pending');
+
+    pendingReminders.forEach(r => {
+      if (triggeredReminderNotifications.has(r.id)) return;
+
+      // Parse reminder date and time
+      const [year, month, day] = r.date.split('-').map(Number);
+      const [hours, minutes] = r.time.split(':').map(Number);
+      const reminderTime = new Date(year, month - 1, day, hours, minutes, 0);
+
+      const diffMs = reminderTime.getTime() - now.getTime();
+      const diffMinutes = diffMs / (1000 * 60);
+
+      // Trigger reminder if it is exactly or within 15 minutes in the future
+      if (diffMinutes > 0 && diffMinutes <= 15) {
+        triggeredReminderNotifications.add(r.id);
+        spawnReminderToast(r, container);
+      }
+    });
+  }, 15000);
+}
+
+function spawnReminderToast(reminder, container) {
+  const alertEl = document.createElement('div');
+  alertEl.className = 'glass-panel reminder-floating-alert';
+  alertEl.id = `reminder-alert-${reminder.id}`;
+  alertEl.innerHTML = `
+    <div class="reminder-alert-header">
+      <span class="bell-icon">🔔</span>
+      <span class="title" style="color: var(--text-primary); font-weight: 700;">Follow-up Reminder</span>
+      <span class="countdown">in 15 mins</span>
+    </div>
+    <div class="reminder-alert-body">
+      <h4>${reminder.trainerName}</h4>
+      <p style="color: var(--text-secondary); margin-top: 0.25rem;">${reminder.note}</p>
+      <div class="time-meta" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem;">
+        Scheduled for: <strong style="color: var(--primary-indigo); font-weight: 600;">${reminder.time} today</strong>
+      </div>
+    </div>
+    <div class="reminder-alert-actions" style="margin-top: 0.25rem;">
+      <button class="btn btn-secondary" style="padding: 0.3rem 0.65rem; font-size: 0.75rem;" id="reminder-dismiss-${reminder.id}">Dismiss</button>
+      <button class="btn btn-primary" style="padding: 0.3rem 0.65rem; font-size: 0.75rem;" id="reminder-complete-${reminder.id}">Mark Completed</button>
+    </div>
+  `;
+
+  container.appendChild(alertEl);
+
+  // Bind cancel action
+  document.getElementById(`reminder-dismiss-${reminder.id}`).onclick = () => {
+    alertEl.style.animation = "fadeOutAlert 0.3s forwards";
+    setTimeout(() => alertEl.remove(), 300);
+  };
+
+  // Bind mark completed action
+  document.getElementById(`reminder-complete-${reminder.id}`).onclick = () => {
+    state.updateReminderStatus(reminder.id, 'Completed');
+    updateSidebarRemindersCount();
+    showToast(`Reminder for ${reminder.trainerName} marked as completed!`, 'success');
+    
+    // Animate removal
+    alertEl.style.animation = "fadeOutAlert 0.3s forwards";
+    setTimeout(() => alertEl.remove(), 300);
+  };
+}
+
+// --------------------------------------------------------------------------
+// Reminders View Renderer
+// --------------------------------------------------------------------------
+function renderReminders() {
+  const reminders = state.getReminders();
+  
+  mainContentPanel.innerHTML = `
+    <div class="view-header">
+      <div class="view-header-title">
+        <h1>Follow-up Reminders</h1>
+        <p>Manage scheduled calls, negotiations, and outreach tasks.</p>
+      </div>
+    </div>
+
+    <div class="reminders-list-container">
+      <div class="sheet-table-wrapper">
+        <table class="sheet-table">
+          <thead>
+            <tr>
+              <th>Trainer Name</th>
+              <th>Scheduled Date & Time</th>
+              <th>Reminder Note</th>
+              <th>Status</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="reminders-table-body">
+            <!-- Dynamic Injection -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  const tbody = document.getElementById('reminders-table-body');
+  
+  if (reminders.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);">
+          <p style="font-size: 1.5rem; margin-bottom: 0.5rem;">🎉 All caught up!</p>
+          <p style="font-size: 0.85rem;">No upcoming follow-ups scheduled at this time.</p>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = reminders.map(r => {
+    const isCompleted = r.status === "Completed";
+    const statusBadgeClass = isCompleted ? "completed" : "pending";
+    
+    return `
+      <tr class="reminder-row" data-trainer-id="${r.trainerId}">
+        <td>
+          <strong style="color: var(--text-white); cursor: pointer; text-decoration: underline;" class="reminder-trainer-link">${r.trainerName}</strong>
+        </td>
+        <td>
+          <span style="color: var(--primary-indigo); font-weight: 600;">📅 ${formatDate(r.date)}</span>
+          <span style="color: var(--text-muted); font-size: 0.8rem; margin-left: 0.25rem;">⏰ ${r.time}</span>
+        </td>
+        <td style="color: var(--text-secondary); max-width: 300px; word-wrap: break-word;">
+          ${r.note}
+        </td>
+        <td>
+          <span class="reminder-status-badge ${statusBadgeClass}">${r.status}</span>
+        </td>
+        <td style="text-align: right; white-space: nowrap;">
+          ${!isCompleted ? `<button class="reminder-action-btn complete btn-complete-reminder" data-id="${r.id}">✔️ Complete</button>` : ''}
+          <button class="reminder-action-btn delete btn-delete-reminder" data-id="${r.id}">🗑️ Delete</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  // Click handler to go to trainer details
+  tbody.querySelectorAll('.reminder-trainer-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const row = link.closest('.reminder-row');
+      switchView('profile-detail', row.dataset.trainerId);
+    });
+  });
+
+  // Action handlers
+  tbody.querySelectorAll('.btn-complete-reminder').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      state.updateReminderStatus(id, "Completed");
+      updateSidebarRemindersCount();
+      renderReminders();
+      showToast("Reminder marked as completed!", "success");
+    });
+  });
+
+  tbody.querySelectorAll('.btn-delete-reminder').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (confirm("Delete this reminder?")) {
+        const id = btn.dataset.id;
+        state.deleteReminder(id);
+        updateSidebarRemindersCount();
+        renderReminders();
+        showToast("Reminder deleted.", "warning");
+      }
+    });
+  });
+}
+
+// --------------------------------------------------------------------------
 // 4. Initial Core Initialization (DOM Ready check)
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
@@ -2535,6 +3050,40 @@ document.addEventListener('DOMContentLoaded', () => {
       if (targetView) switchView(targetView);
     });
   });
+
+  // Load adjustable sidebar resizer dragging listeners
+  const resizer = document.getElementById('sidebar-resizer');
+  const sidebar = document.querySelector('.app-sidebar');
+  if (resizer && sidebar) {
+    resizer.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      document.body.style.cursor = 'col-resize';
+      resizer.classList.add('resizing');
+      
+      const doDrag = (moveEvent) => {
+        let newWidth = moveEvent.clientX;
+        if (newWidth < 200) newWidth = 200; // min width limit
+        if (newWidth > 500) newWidth = 500; // max width limit
+        document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+      };
+      
+      const stopDrag = () => {
+        document.body.style.cursor = '';
+        resizer.classList.remove('resizing');
+        document.removeEventListener('mousemove', doDrag);
+        document.removeEventListener('mouseup', stopDrag);
+      };
+      
+      document.addEventListener('mousemove', doDrag);
+      document.addEventListener('mouseup', stopDrag);
+    });
+  }
+
+  // Load initial reminders badge count
+  updateSidebarRemindersCount();
+
+  // Start checking for upcoming follow-up reminders (pop-up alerts 15 minutes before)
+  startReminderCheckScheduler();
 
   // Trigger default dashboard rendering
   switchView('dashboard');

@@ -1,0 +1,7 @@
+.gemini/
+backend/.env
+backend/__pycache__/
+backend/venv/
+node_modules/
+dist/
+*.pyc

@@ -90,140 +90,34 @@ export class AIParsingService {
       return this.parseMockResume(file, onProgress);
     }
 
-    const filename = file.name;
-    const extension = filename.split('.').pop().toLowerCase();
-
-    onProgress("Initializing Client-Side Ingestion...");
+    onProgress("Initializing Backend Ingestion...");
     await this.delay(400);
 
-    let rawText = "";
-
     try {
-      const extension = filename.split('.').pop().toLowerCase();
-      const isImage = ['png', 'jpg', 'jpeg'].includes(extension);
+      onProgress("Uploading file to AI backend...");
+      const formData = new FormData();
+      formData.append("file", file);
 
-      let base64Data = null;
+      const response = await fetch("http://localhost:8000/api/upload-resume/", {
+        method: "POST",
+        body: formData
+      });
 
-      if (isImage) {
-        onProgress("Loading image file stream...");
-        base64Data = await this.readFileAsBase64(file);
-        
-        const geminiApiKey = localStorage.getItem('ww_tms_gemini_key');
-        if (geminiApiKey && geminiApiKey.trim()) {
-          onProgress("Running client-side Tesseract.js OCR engine...");
-          try {
-            const result = await Tesseract.recognize(file, 'eng', {
-              logger: m => {
-                if (m.status === 'recognizing text') {
-                  onProgress(`OCR Progress: ${Math.round(m.progress * 100)}%`);
-                }
-              }
-            });
-            rawText = result.data.text;
-          } catch (tessErr) {
-            console.error("Tesseract error:", tessErr);
-          }
-        } else {
-           onProgress("Skipping OCR due to missing AI Key...");
-           rawText = ""; // Skip Tesseract, use fallback heuristic directly
-        }
-      } else if (extension === 'pdf') {
-        onProgress("Loading PDF.js engine buffer...");
-        const arrayBuffer = await this.readFileAsArrayBuffer(file);
-        
-        onProgress("Running Coordinate-Based Reading Reconstruction...");
-        rawText = await this.extractPdfText(arrayBuffer);
-      } else if (extension === 'docx') {
-        onProgress("Loading Mammoth.js engine...");
-        const arrayBuffer = await this.readFileAsArrayBuffer(file);
-        rawText = await this.extractDocxText(arrayBuffer);
-      } else if (extension === 'txt') {
-        rawText = await this.readTxtFile(file);
-      } else {
-        throw new Error("Unsupported file format.");
+      if (!response.ok) {
+        throw new Error(`Backend API returned status ${response.status}`);
       }
-
-      onProgress("Analyzing metadata payload structure...");
-      await this.delay(600);
-
-      const geminiApiKey = localStorage.getItem('ww_tms_gemini_key');
-      
-      if (geminiApiKey && geminiApiKey.trim()) {
-        if (isImage) {
-          onProgress("Analyzing image resume with Gemini Multimodal AI...");
-          try {
-            const parsedProfile = await this.parseImageViaGemini(base64Data, mimeType, geminiApiKey.trim());
-            parsedProfile.source = "Direct App";
-            onProgress("Multimodal AI Analysis completed with high-accuracy!");
-            await this.delay(400);
-            return parsedProfile;
-          } catch (apiErr) {
-            console.warn("Gemini Multimodal API call failed, trying text-based Gemini parsing:", apiErr);
-            if (rawText && rawText.trim()) {
-              onProgress("Connecting to Gemini API for deep AI Document Analysis of OCR text...");
-              try {
-                const parsedProfile = await this.parseViaGemini(rawText, geminiApiKey.trim());
-                parsedProfile.source = "Direct App";
-                if (!parsedProfile.totalExperience || parsedProfile.totalExperience === 0) {
-                  const calculatedExp = this.calculateYearsOfExperienceFromText(rawText);
-                  if (calculatedExp > 0) {
-                    parsedProfile.totalExperience = calculatedExp;
-                    parsedProfile.teachingExperience = Math.max(0, Math.round(calculatedExp / 3));
-                  }
-                }
-                onProgress("AI Analysis of OCR text completed with high-accuracy!");
-                await this.delay(400);
-                return parsedProfile;
-              } catch (apiErr2) {
-                console.warn("Gemini API call on OCR text failed:", apiErr2);
-              }
-            }
-            onProgress("Gemini Multimodal & Text failed. Using local heuristic parser...");
-            await this.delay(1000);
-          }
-        } else {
-          onProgress("Connecting to Gemini API for deep AI Document Analysis...");
-          try {
-            const parsedProfile = await this.parseViaGemini(rawText, geminiApiKey.trim());
-            parsedProfile.source = "Direct App";
-            if (!parsedProfile.totalExperience || parsedProfile.totalExperience === 0) {
-              const calculatedExp = this.calculateYearsOfExperienceFromText(rawText);
-              if (calculatedExp > 0) {
-                parsedProfile.totalExperience = calculatedExp;
-                parsedProfile.teachingExperience = Math.max(0, Math.round(calculatedExp / 3));
-              }
-            }
-            onProgress("AI Analysis completed with high-accuracy!");
-            await this.delay(400);
-            return parsedProfile;
-          } catch (apiErr) {
-            console.warn("Gemini API call failed, falling back to local heuristic extraction:", apiErr);
-            onProgress("Gemini API failed. Falling back to local heuristic parser...");
-            await this.delay(1000);
-          }
-        }
-      }
-
-      if (isImage && (!rawText || !rawText.trim())) {
-        onProgress("Fallback mapping activated for image...");
-        await this.delay(1200);
-        rawText = `Name: ${filename.split('.')[0].replace(/_|-/g, ' ')}\nEmail: ${filename.split('.')[0].toLowerCase().replace(/_|-/g, '')}@email.com\nSkills: React, Node, Web Development\nExperience: 5 years experience\n`;
-      }
-
-      onProgress("Applying smart regex entity extractors...");
-      await this.delay(800);
 
       onProgress("Structuring parsed parameters...");
       await this.delay(400);
 
-      const parsedProfile = this.extractEntitiesFromText(rawText, filename);
+      const parsedProfile = await response.json();
       return parsedProfile;
 
     } catch (err) {
       console.error("Document extraction error:", err);
       onProgress("Fallback mapping activated due to read error...");
       await this.delay(500);
-      return this.getDefaultFallbackProfile(filename);
+      return this.getDefaultFallbackProfile(file.name);
     }
   }
 

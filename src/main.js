@@ -3085,6 +3085,22 @@ document.addEventListener('DOMContentLoaded', () => {
   // Start checking for upcoming follow-up reminders (pop-up alerts 15 minutes before)
   startReminderCheckScheduler();
 
+  // Subscribe to backend data changes to re-render views when fetch completes
+  state.subscribe(() => {
+    // Re-render current view if data changed to ensure we show fetched data
+    // Avoid re-rendering intake or forms to not lose user input
+    if (['dashboard', 'directory', 'outbox', 'reminders'].includes(currentView)) {
+      // Re-trigger view rendering without the loading spinner
+      switch (currentView) {
+        case 'dashboard': renderDashboard(); break;
+        case 'directory': renderDirectory(); break;
+        case 'outbox': renderOutbox(); break;
+        case 'reminders': renderReminders(); break;
+      }
+      updateSidebarRemindersCount();
+    }
+  });
+
   // Trigger default dashboard rendering
   switchView('dashboard');
 });
